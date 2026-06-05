@@ -1,10 +1,10 @@
 # Agent 架构说明
 
-本文档说明 Research-Agent 的 Agent 设计边界、当前实现链路，以及对外说明方式。
+本文档说明 Research Reading Agent 的 Agent 设计边界和当前实现链路。项目定位是本地科研阅读工作台，Agent 入口用于把自然语言请求转成具体工具调用。
 
 ## 1. 为什么这是 Agent，而不是普通 API 后端
 
-普通 API 后端通常要求用户明确调用某个接口，例如“我要调用 `/api/papers/search` 并传入 topic”。Research-Agent 多了一层自然语言编排能力：
+普通 API 后端通常要求用户明确调用某个接口，例如“我要调用 `/api/papers/search` 并传入 topic”。Research Reading Agent 多了一层自然语言编排能力：
 
 - 用户可以说“帮我搜索 3 篇关于 LLM agent 的论文”。
 - 用户也可以说“围绕 LLM agent 完整跑一遍研究流程”。
@@ -287,7 +287,7 @@ POST /api/workflow/run
 
 可以这样说：
 
-> 这个项目不是只做一个聊天接口，而是把论文搜索、接收、精读、轻量 RAG 检索问答、知识树、创新点挖掘和完整研究闭环这些工具统一到 `/api/agent/query`。用户输入自然语言后，Agent 会先通过 LLM router 或 fallback router 判断要调用哪个工具，再由 argument resolver 补齐参数，例如把“第 2 篇”映射成最近搜索结果里的 paper_id。然后 ToolRegistry 调用具体服务，最后 answer_builder 生成统一的 final_answer。当前我把它控制在单轮单工具 Agent；完整闭环通过 `run_research_workflow` 这个复合工具实现，并在 ingest 后自动接入 RAG v1 索引。RAG v1 通过 SQLite chunks 和关键词检索提供 evidence，每条 evidence 会解释 matched terms 和 score reason；没有 evidence 时不编造回答。后续可以在这个基础上升级多步规划和向量 RAG。
+> 这个项目不是只做一个聊天接口，而是把论文搜索、接收、精读、知识树、创新点、报告和本地检索复盘这些工具统一到 `/api/agent/query`。用户输入自然语言后，Agent 会先通过 LLM router 或 fallback router 判断要调用哪个工具，再由 argument resolver 补齐参数，例如把“第 2 篇”映射成最近搜索结果里的 paper_id。然后 ToolRegistry 调用具体服务，最后 answer_builder 生成统一的 final_answer。当前它是单轮单工具 Agent；完整阅读流程通过 `run_research_workflow` 这个复合工具实现，并在 ingest 后自动接入 RAG v1 索引。RAG v1 通过 SQLite chunks 和关键词检索提供 evidence，每条 evidence 会解释 matched terms 和 score reason；没有 evidence 时不编造回答。后续可以在这个基础上升级多步规划和向量检索。
 
 可以重点强调：
 

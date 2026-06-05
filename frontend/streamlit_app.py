@@ -14,11 +14,11 @@ PAGE_AGENT_CHAT = "智能体对话"
 PAGE_RUN_WORKFLOW = "运行研究流程"
 PAGE_WORKFLOW_HISTORY = "研究流程历史"
 PAGE_WORKFLOW_REPORT = "研究报告"
-PAGE_RAG_QA = "RAG 问答"
-PAGE_RAG_EVALUATION = "RAG 评估"
+PAGE_RAG_QA = "论文查询与复盘"
+PAGE_RAG_EVALUATION = "检索质量评估"
 
 
-st.set_page_config(page_title="科研智能体工作台", layout="wide")
+st.set_page_config(page_title="科研阅读智能体工作台", layout="wide")
 
 
 def normalize_base_url(url: str) -> str:
@@ -153,7 +153,7 @@ def metric_value(value: Any) -> str:
 
 def dashboard_page() -> None:
     st.header("仪表盘")
-    st.info("这里汇总展示当前研究流程、RAG 记录和评估指标。第一次使用时，可以先到“运行研究流程”页面点击“运行演示流程”。")
+    st.info("这里汇总展示当前研究流程、查询记录和评估指标。第一次使用时，可以先到“运行研究流程”页面点击“运行演示流程”。")
     connected = backend_health()
     if connected:
         st.success("后端已连接")
@@ -207,7 +207,7 @@ def dashboard_page() -> None:
             st.info("暂无 workflow 历史记录。")
         render_json_section("研究流程历史原始 JSON", history_payload)
 
-    st.subheader("最近 RAG trace")
+    st.subheader("最近查询 trace")
     traces_payload, traces_error = api_request("GET", "/api/rag/traces/latest?limit=5")
     render_error(traces_error)
     if traces_payload:
@@ -229,10 +229,10 @@ def dashboard_page() -> None:
                 use_container_width=True,
             )
         else:
-            st.info("暂无 RAG trace。")
-        render_json_section("RAG trace 原始 JSON", traces_payload)
+            st.info("暂无查询 trace。")
+        render_json_section("查询 trace 原始 JSON", traces_payload)
 
-    st.subheader("RAG 评估摘要")
+    st.subheader("检索评估摘要")
     eval_payload, eval_error = api_request("GET", "/api/rag/evaluation/summary")
     render_error(eval_error)
     if eval_payload:
@@ -242,7 +242,7 @@ def dashboard_page() -> None:
         cols[1].metric("total_feedback", metric_value(summary.get("total_feedback")))
         cols[2].metric("relevance_rate", metric_value(summary.get("relevance_rate")))
         cols[3].metric("no_evidence_accuracy", metric_value(summary.get("no_evidence_accuracy")))
-        render_json_section("RAG 评估原始 JSON", eval_payload)
+        render_json_section("检索评估原始 JSON", eval_payload)
 
     st.subheader("证据级评估指标")
     evidence_payload, evidence_error = api_request("GET", "/api/rag/evaluation/evidence-summary")
@@ -260,7 +260,7 @@ def dashboard_page() -> None:
         render_json_section("证据级评估原始 JSON", evidence_payload)
 
     st.subheader("快捷操作")
-    st.info("请在左侧页面菜单中进入“运行研究流程”、“RAG 问答”或“研究报告”。")
+    st.info("请在左侧页面菜单中进入“运行研究流程”、“论文查询与复盘”或“研究报告”。")
 
 
 def agent_chat_page() -> None:
@@ -299,7 +299,7 @@ def agent_chat_page() -> None:
 
 def run_workflow_page() -> None:
     st.header("运行研究流程")
-    st.info("这里用于从研究方向出发，执行论文搜索、接收、ingest、RAG 索引、知识树和创新点生成。没有网络或 API Key 时建议使用 dry_run 演示模式。")
+    st.info("这里用于从研究方向出发，执行论文搜索、接收、ingest、本地检索索引、知识树和创新点生成。没有网络或 API Key 时建议使用 dry_run 演示模式。")
     topic = st.text_input("研究主题", value="large language model agent")
     col1, col2 = st.columns(2)
     max_results = col1.number_input("max_results（搜索论文数量）", min_value=1, max_value=20, value=3, step=1)
@@ -417,13 +417,13 @@ def workflow_report_page() -> None:
 
 
 def rag_qa_page() -> None:
-    st.header("RAG 问答")
-    st.info("这里用于基于已索引论文片段进行问答。RAG v1 使用关键词/token overlap 检索，如果没有证据，系统不会编造答案。")
+    st.header("论文查询与复盘")
+    st.info("这里用于基于已索引论文片段进行查询和复盘。底层 RAG v1 使用关键词/token overlap 检索，如果没有证据，系统不会编造答案。")
     query = st.text_area("问题", value="retrieval augmented generation", height=100)
     paper_id = st.text_input("paper_id（可选论文 ID）", value="")
     top_k = st.number_input("top_k（返回证据数量）", min_value=1, max_value=20, value=5, step=1)
 
-    if st.button("提交 RAG 问答", type="primary"):
+    if st.button("提交查询", type="primary"):
         request_body: dict[str, Any] = {"query": query, "top_k": int(top_k)}
         if paper_id.strip():
             request_body["paper_id"] = paper_id.strip()
@@ -432,9 +432,9 @@ def rag_qa_page() -> None:
         if payload:
             save_trace_id(payload)
             if payload.get("success"):
-                st.success("RAG 问答完成。")
+                st.success("查询完成。")
             else:
-                st.error(payload.get("error") or "RAG 问答失败。")
+                st.error(payload.get("error") or "查询失败。")
 
             st.subheader("回答")
             st.markdown(payload.get("answer") or "")
@@ -466,8 +466,8 @@ def rag_qa_page() -> None:
 
 
 def rag_evaluation_page() -> None:
-    st.header("RAG 评估")
-    st.info("这里用于查看 RAG trace、人工反馈和 evidence-level 评估指标。适合分析检索质量和后续优化方向。")
+    st.header("检索质量评估")
+    st.info("这里用于查看查询 trace、人工反馈和 evidence-level 评估指标。适合分析检索质量和后续优化方向。")
     if st.session_state.get("latest_trace_id"):
         st.caption(f"最近保存的 trace_id：{st.session_state['latest_trace_id']}")
 
@@ -475,7 +475,7 @@ def rag_evaluation_page() -> None:
 
     with col1:
         st.subheader("Trace 级评估摘要")
-        if st.button("加载 RAG 评估摘要"):
+        if st.button("加载检索评估摘要"):
             payload, error = api_request("GET", "/api/rag/evaluation/summary")
             render_error(error)
             if payload:
@@ -525,8 +525,8 @@ def rag_evaluation_page() -> None:
 
 def main() -> None:
     init_session_state()
-    st.title("科研智能体工作台")
-    st.caption("基于 FastAPI 后端的科研智能体产品原型。")
+    st.title("科研阅读智能体工作台")
+    st.caption("基于 FastAPI 后端的科研阅读与整理产品原型。")
 
     with st.sidebar:
         st.text_input("API Base URL（后端地址）", value=DEFAULT_API_BASE_URL, key="api_base_url")
@@ -561,8 +561,8 @@ def main() -> None:
                 1. 到“运行研究流程”点击“运行演示流程”
                 2. 回到“仪表盘”查看 latest workflow
                 3. 到“研究报告”生成报告
-                4. 到“RAG 问答”测试问答
-                5. 到“RAG 评估”查看 trace 和指标
+                4. 到“论文查询与复盘”测试查询
+                5. 到“检索质量评估”查看 trace 和指标
                 """
             )
 

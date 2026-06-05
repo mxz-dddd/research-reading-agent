@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Research-Agent local demo curl examples.
+# Research Reading Agent local demo curl examples.
 #
 # Usage:
 # 1. Start the API server first:

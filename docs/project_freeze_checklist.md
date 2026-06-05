@@ -1,6 +1,6 @@
 # Project Freeze Checklist
 
-本文档用于 Research-Agent 冻结前的交付检查，重点说明当前已经完成的能力、尚未实现的规划能力、核心接口入口、测试命令和提交风险。
+本文档用于 Research Reading Agent 发布前的交付检查。项目定位是本地科研阅读工作台，重点检查已实现能力、尚未实现的规划能力、核心接口入口、测试命令和提交风险。
 
 ## 1. 当前已实现能力清单
 
@@ -42,7 +42,7 @@
 - trace-level feedback：人工标注 trace 是否相关。
 - evidence-level feedback：人工标注单条 evidence chunk 相关性。
 - 轻量评估指标：Recall@K、MRR、nDCG@5。
-- Agent 可自然语言查询 RAG trace 和 RAG 评估摘要。
+- Agent 可自然语言查询 evidence trace 和检索评估摘要。
 
 ### 测试保护
 
@@ -175,13 +175,13 @@ POST /api/workflow/run
 
 ## 7. 本地演示建议顺序
 
-1. 用 30 秒说明项目：这是面向科研论文分析与创新点挖掘的多工具 Research Agent。
-2. 先展示 `/api/agent/query`：说明自然语言如何映射到工具调用。
-3. 展示 Research Workflow：从搜索、接收、ingest、RAG 索引、知识树到创新点的一键闭环。
+1. 用 30 秒说明项目：这是一个本地科研论文阅读与整理工作台。
+2. 先展示 Streamlit 前端：说明如何从研究方向开始运行阅读流程。
+3. 展示 Research Workflow：从搜索、接收、ingest、本地检索索引、知识树到创新点的一键闭环。
 4. 展示 `dry_run=true`：说明无网络、无 Key 时也能稳定验收流程结构。
 5. 展示 workflow history / detail / report：说明结果可以持久化和复盘。
-6. 展示 RAG v1：说明 evidence chunks、matched terms、score reason 和 no evidence 防幻觉。
-7. 展示 RAG trace 和 feedback：说明如何记录检索过程并做人类标注评估。
+6. 展示本地检索能力：说明 evidence chunks、matched terms、score reason 和 no evidence 防幻觉。
+7. 展示 trace 和 feedback：说明如何记录查询过程并做人类标注评估。
 8. 展示测试：说明当前有端到端闭环测试和模块级测试保护。
 9. 最后主动说明边界：RAG v1 不是 embedding 检索，后续会升级 Qdrant、hybrid retrieval、reranker 和多步 Agent。
 

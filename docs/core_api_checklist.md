@@ -87,7 +87,7 @@
 - 主流程作用：
   - 根据研究主题搜索候选论文，当前优先 arXiv；arXiv 网络或解析失败时使用 mock fallback，保证接口可演示。
 - 对外说明：
-  - 这是 Research Agent 的论文发现入口，会把搜索结果落库，并为每篇论文生成一个中文初筛结果。
+  - 这是 Research Reading Agent 的论文发现入口，会把搜索结果落库，并为每篇论文生成一个中文初筛结果。
 
 ### GET /api/papers/search-history
 
@@ -459,7 +459,7 @@
 - 主流程作用：
   - 查看某篇论文被检索或问答引用过的记录。
 - 对外说明：
-  - 这个接口可以帮助分析某篇论文在 RAG 问答中的使用情况，为后续人工标注和评估做准备。
+  - 这个接口可以帮助分析某篇论文在本地检索回答中的使用情况，为后续人工标注和评估做准备。
 
 ### POST /api/rag/traces/{trace_id}/feedback
 
@@ -483,7 +483,7 @@
 - 主流程作用：
   - 为某次 RAG trace 添加人工相关性标注。
 - 对外说明：
-  - 这是 trace-based RAG 评估闭环的人工标注入口。允许同一 trace 多次标注，评估默认使用最新一条 feedback。
+  - 这是 trace-based 检索评估闭环的人工标注入口。允许同一 trace 多次标注，评估默认使用最新一条 feedback。
 
 ### GET /api/rag/evaluation/summary
 
@@ -674,7 +674,7 @@
   - 执行结束后会把 workflow 结果保存到 `workflow_runs`，用于查询最近一次结果、历史记录和单次详情。
   - `dry_run=true` 时返回明确标注为 `dry_run/mock` 的模拟结果，包括模拟 RAG 索引结果；不代表真实论文检索、真实 RAG chunks 或真实生成结果。
 - 对外说明：
-  - 这是 Research Agent 的复合工具接口。它不是开放式多步 planner，而是一个可控、可测试的固定 workflow，用于完整演示从研究方向到创新点的闭环。
+  - 这是 Research Reading Agent 的复合工具接口。它不是开放式多步 planner，而是一个可控、可测试的固定 workflow，用于完整演示从研究方向到创新点的闭环。
   - 为了方便验收，接口提供 dry_run 演示模式，能在不调用 arXiv、OpenAI、PDF 下载、不写 papers / knowledge / innovation 业务表的情况下展示完整响应结构；dry_run run 本身仍会保存到 `workflow_runs`，并带有 `dry_run=true` 标记。
   - 现在 workflow 不只是一次性返回结果，还会保存 run_id、统计信息、warnings 和完整 result，方便复盘研究过程。
   - RAG v1 已接入 workflow 主链路，但仍是本地关键词 / token overlap 检索增强，不是 Qdrant 或 embedding 语义检索。

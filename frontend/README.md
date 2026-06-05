@@ -1,6 +1,6 @@
-# Research Agent Streamlit 前端原型
+# Research Reading Agent Streamlit 前端原型
 
-这个目录存放 Research-Agent 的最小 Streamlit Web UI。它用于把现有 FastAPI 后端能力包装成更容易演示和使用的中文产品原型，不是最终生产级前端。
+这个目录存放 Research Reading Agent 的最小 Streamlit Web UI。它是科研阅读工作台的中文产品原型，用于把现有 FastAPI 后端能力组织成更容易操作的本地页面，不是最终生产级前端。
 
 ## 1. 前端用途
 
@@ -11,8 +11,8 @@ Streamlit 前端会调用已有 FastAPI 接口，帮助用户完成：
 - 运行 Research Workflow。
 - 查看研究流程历史。
 - 生成和读取 workflow Markdown 报告。
-- 使用本地 RAG v1 做论文内容问答。
-- 查看 RAG trace 和评估摘要。
+- 使用本地检索能力查询已索引论文片段。
+- 查看查询 trace、人工反馈和检索评估摘要。
 
 前端不会修改后端业务逻辑，也不会新增后端 API。
 
@@ -60,13 +60,13 @@ streamlit run frontend/streamlit_app.py
 
 每个页面顶部都有 1 到 2 行中文使用引导，说明这个页面适合做什么，以及第一次使用时应该从哪里开始。
 
-- 仪表盘：只读状态页，展示后端连接状态、最近 workflow、workflow 历史、最近 RAG trace、RAG 评估摘要和证据级指标。
+- 仪表盘：只读状态页，展示后端连接状态、最近 workflow、workflow 历史、最近查询 trace、检索评估摘要和证据级指标。
 - 智能体对话：输入自然语言请求，调用 `POST /api/agent/query`。
 - 运行研究流程：调用 `POST /api/workflow/run`，支持 topic、max_results、accept_top_k、dry_run 和 index_rag。
 - 研究流程历史：调用 `GET /api/workflow/latest` 和 `GET /api/workflow/history?limit=5`。
 - 研究报告：通过 `/api/workflow/{run_id}/report` 生成或读取 Markdown 报告。
-- RAG 问答：调用 `POST /api/rag/answer`，展示回答、证据片段和 trace_id。
-- RAG 评估：展示 trace 级评估、证据级评估和单条 trace 的证据详情。
+- 论文查询与复盘：调用 `POST /api/rag/answer`，展示回答、证据片段和 trace_id。
+- 检索质量评估：展示 trace 级评估、证据级评估和单条 trace 的证据详情。
 
 侧边栏可以修改 `API Base URL`。默认值是：
 
@@ -90,7 +90,7 @@ uvicorn app.main:app --reload
 前端会使用 `st.session_state` 保存一些关键 ID，减少复制粘贴：
 
 - `latest_run_id`：workflow 执行成功后保存，也会在加载 latest/history 时更新。
-- `latest_trace_id`：RAG 问答返回 trace_id 后保存。
+- `latest_trace_id`：论文查询返回 trace_id 后保存。
 - `latest_report_path`：生成或读取研究报告后保存。
 - `latest_agent_response`：智能体对话返回后保存。
 
@@ -125,5 +125,5 @@ uvicorn app.main:app --reload
 ## 9. 没有历史数据怎么办
 
 - 如果仪表盘没有 workflow 记录，请进入“运行研究流程”页面，点击“运行演示流程”。
-- 如果仪表盘没有 RAG trace，请进入“RAG 问答”页面，提交一次问题。
+- 如果仪表盘没有查询 trace，请进入“论文查询与复盘”页面，提交一次问题。
 - 如果研究报告页面没有 run_id，请先运行一次 workflow，前端会自动保存最新的 `latest_run_id`。
