@@ -1,0 +1,17 @@
+[
+  {
+    "query": "retrieval augmented generation",
+    "expected_terms": ["retrieval", "generation"],
+    "expected_paper_id": "P1"
+  },
+  {
+    "query": "agent planning tool use",
+    "expected_terms": ["agent", "planning"],
+    "expected_paper_id": "P2"
+  },
+  {
+    "query": "propagation error correction",
+    "expected_terms": ["propagation", "error"],
+    "expected_paper_id": "P3"
+  }
+]
