@@ -21,11 +21,13 @@ from app.schemas.rag import (
     RagTraceListResponse,
 )
 from app.services.rag_evaluation_service import RagEvaluationService
+from app.services.rag_eval_run_service import RagEvalRunService
 from app.services.rag_service import RagService
 
 router = APIRouter(tags=["rag"])
 rag_service = RagService()
 rag_evaluation_service = RagEvaluationService()
+rag_eval_run_service = RagEvalRunService()
 context_repo = ContextPackRepository()
 
 
@@ -80,6 +82,20 @@ def list_context_packs(
 ) -> dict:
     items = context_repo.list_latest(user_id=user_id, session_id=session_id, limit=limit)
     return {"items": items, "count": len(items)}
+
+
+@router.get("/eval-runs")
+def list_rag_eval_runs(limit: int = Query(default=20, ge=1, le=100)) -> dict:
+    items = rag_eval_run_service.list_runs(limit=limit)
+    return {"items": items, "count": len(items)}
+
+
+@router.get("/eval-runs/{run_id}")
+def get_rag_eval_run(run_id: str) -> dict:
+    run = rag_eval_run_service.get_run(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="eval run not found")
+    return run
 
 
 @router.get("/traces/latest", response_model=RagTraceListResponse)

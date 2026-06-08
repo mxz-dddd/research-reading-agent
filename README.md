@@ -255,6 +255,8 @@ GET  /api/rag/evaluation/evidence-summary
 
 当前指标是轻量规则评估，不是 LLM-as-judge；适合做本地回归和版本对比。后续可以扩展为 RAGAS、人工标注集或更严格的 citation faithfulness 检查。
 
+前端新增“RAG v2 评估看板”，用于查看 `eval/rag_eval_runs/*.json` 的 summary、`by_retrieval_mode` 和 results 明细，方便比较 `hybrid` / `keyword` 的本地评估结果。`eval/rag_eval_runs/` 仍然是 ignored，不进入 Git。这个看板只读取本地评估结果，不自动运行评估，也不调用外部 API；当前评估仍是轻量规则评估，不是 LLM-as-judge。
+
 详细说明见 [docs/rag_v2_context_pack.md](docs/rag_v2_context_pack.md)。
 
 ## 8. 前端界面
@@ -268,6 +270,7 @@ Streamlit 前端位于 `frontend/streamlit_app.py`，页面为中文：
 - 研究报告
 - 论文查询与复盘
 - RAG v2 调试台
+- RAG v2 评估看板
 - 检索质量评估
 
 这是一个产品原型，用来把后端能力组织成可操作页面。它不是最终生产级前端。
