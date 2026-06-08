@@ -126,6 +126,149 @@ curl -X POST http://127.0.0.1:8000/api/rag/answer \
   }'
 ```
 
+## RAG v2 Debugger / 可观测性
+
+### 前端 RAG v2 调试台
+
+Streamlit 前端新增入口：`RAG v2 调试台`。这个页面用于调试 contextual hybrid RAG 的 evidence、Context Pack 和 pipeline，不改变后端检索算法本身。
+
+页面支持：
+
+- 运行 RAG Search。
+- 运行 RAG Answer。
+- 选择 `retrieval_mode`：`hybrid` / `keyword`。
+- 指定 `user_id`、`session_id`、`paper_id`、`top_k`、`query`。
+- 查看回答结果。
+- 查看 Evidence Debugger。
+- 查看 Context Pack Viewer。
+- 查看 Pipeline Viewer。
+- 查看 raw response JSON。
+
+### Evidence Debugger
+
+Evidence Debugger 会把返回的 evidence 整理成表格，并保留每条 evidence 的展开详情。展示字段包括：
+
+- `rank`
+- `paper_id`
+- `section_title`
+- `chunk_index`
+- `score`
+- `sparse_score`
+- `dense_score`
+- `rrf_score`
+- `rerank_score`
+- `score_reason`
+- `content_preview`
+- `contextual_header`
+- raw JSON
+
+它主要用于判断 sparse、dense、RRF、rerank 哪一阶段影响了最终 evidence，也可以排查检索命中是否来自正文、`section_title`、`contextual_header` 或 token overlap。
+
+### Context Pack Viewer
+
+Context Pack Viewer 展示一次 search / answer 构造出的上下文摘要，包括：
+
+- `context_pack_id`
+- `estimated_tokens` / `token_budget` / `item_count`
+- 按 `item_type` 分组查看 items
+- 根据 `context_pack_id` 加载历史 Context Pack
+- raw JSON，用于复现某次回答上下文
+
+`item_type` 可能包括：
+
+- `rag_evidence`
+- `active_paper`
+- `session_recent_search_results`
+
+这些不是唯一取值，后续可以继续增加新的上下文来源。
+
+### Pipeline Viewer
+
+Pipeline Viewer 展示当前 response 中的 pipeline 字段，主要包括：
+
+- `retrieval_mode`
+- `sparse_candidate_count`
+- `dense_candidate_count`
+- `fused_candidate_count`
+- `rerank_enabled`
+- `embedding_provider`
+- `rrf_k`
+
+它用于快速确认当前回答实际走的是 `keyword` 还是 `hybrid`，也用于确认 candidate 数量、RRF、rerank 和 embedding provider 配置。
+
+### Context Pack 查询 API
+
+读取单个 Context Pack：
+
+```text
+GET /api/rag/context-packs/{context_pack_id}
+```
+
+返回单个 Context Pack。不存在时返回 404，`detail` 包含 `context_pack_id not found`。
+
+查看指定用户和会话最近生成的 Context Packs：
+
+```text
+GET /api/rag/context-packs?user_id=default&session_id=default&limit=10
+```
+
+返回结构：
+
+```json
+{
+  "items": [],
+  "count": 0
+}
+```
+
+`limit` 范围是 1 到 50。这个接口主要用于调试最近生成的 Context Packs。
+
+### API smoke test 脚本
+
+本地 smoke 脚本路径：
+
+```text
+scripts/smoke_rag_v2.py
+```
+
+支持参数：
+
+- `--base-url`
+- `--paper-id`
+- `--query`
+- `--top-k`
+- `--retrieval-mode`
+- `--user-id`
+- `--session-id`
+
+执行链路：
+
+- `GET /health`
+- 可选 `POST /api/rag/index`
+- `POST /api/rag/search`
+- `POST /api/rag/answer`
+- 如果返回 `context_pack_id`，则 `GET /api/rag/context-packs/{context_pack_id}`
+
+示例命令：
+
+```bash
+.venv/bin/python scripts/smoke_rag_v2.py \
+  --base-url http://127.0.0.1:8000 \
+  --paper-id 1 \
+  --query "这篇论文的方法和实验结论是什么？" \
+  --retrieval-mode hybrid
+```
+
+### 当前边界
+
+- 当前没有接入 Qdrant。
+- 当前没有接入 sentence-transformers。
+- 当前没有接入外部 reranker。
+- 当前没有实现 GraphRAG。
+- 尚未接入 Qdrant，尚未接入 sentence-transformers，尚未实现 GraphRAG。
+- 当前 hash embedding 是为了本地可测、可回归、无外部依赖。
+- 当前 Debugger 是可观测性工具，不改变 RAG 检索算法本身。
+
 ## 尚未实现
 
 - 真实 sentence-transformers embedding。

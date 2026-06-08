@@ -1,5 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
+from app.repositories.context_repo import ContextPackRepository
+from app.schemas.context import ContextPackRead
 from app.schemas.rag import (
     RagAnswerRequest,
     RagAnswerResponse,
@@ -24,6 +26,7 @@ from app.services.rag_service import RagService
 router = APIRouter(tags=["rag"])
 rag_service = RagService()
 rag_evaluation_service = RagEvaluationService()
+context_repo = ContextPackRepository()
 
 
 @router.post("/index", response_model=RagIndexResponse)
@@ -59,6 +62,24 @@ def answer_with_rag(payload: RagAnswerRequest) -> RagAnswerResponse:
         session_id=payload.session_id,
         retrieval_mode=payload.retrieval_mode,
     )
+
+
+@router.get("/context-packs/{context_pack_id}", response_model=ContextPackRead)
+def get_context_pack(context_pack_id: str) -> ContextPackRead:
+    context_pack = context_repo.get_context_pack(context_pack_id)
+    if context_pack is None:
+        raise HTTPException(status_code=404, detail="context_pack_id not found")
+    return context_pack
+
+
+@router.get("/context-packs")
+def list_context_packs(
+    user_id: str = "default",
+    session_id: str = "default",
+    limit: int = Query(default=10, ge=1, le=50),
+) -> dict:
+    items = context_repo.list_latest(user_id=user_id, session_id=session_id, limit=limit)
+    return {"items": items, "count": len(items)}
 
 
 @router.get("/traces/latest", response_model=RagTraceListResponse)
