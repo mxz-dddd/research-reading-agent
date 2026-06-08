@@ -269,6 +269,92 @@ scripts/smoke_rag_v2.py
 - 当前 hash embedding 是为了本地可测、可回归、无外部依赖。
 - 当前 Debugger 是可观测性工具，不改变 RAG 检索算法本身。
 
+## RAG v2 Golden Queries / 质量评估
+
+Golden queries 是一组本地 JSONL 测试问题，用来比较 `hybrid` / `keyword` 等 `retrieval_mode` 的检索质量，并为后续替换 embedding、Qdrant、reranker 前建立可回归基线。
+
+示例文件：
+
+```text
+eval/golden_queries.example.jsonl
+```
+
+每行是一个 JSON object，字段包括：
+
+```json
+{
+  "query_id": "gq-001",
+  "query": "这篇论文的核心方法是什么？",
+  "paper_id": null,
+  "expected_terms": ["method", "approach"],
+  "expected_chunk_ids": [],
+  "expected_paper_ids": [],
+  "must_contain_any": ["方法", "method", "approach"],
+  "notes": "示例问题，用于测试方法类问题的检索。"
+}
+```
+
+字段说明：
+
+- `query_id`：唯一 ID。
+- `query`：用户问题。
+- `paper_id`：可选论文 ID；为空时不限定论文。
+- `expected_terms`：期望 evidence 中出现的关键词。
+- `expected_chunk_ids`：期望命中的 chunk id，可为空。
+- `expected_paper_ids`：期望命中的 paper id，可为空。
+- `must_contain_any`：用于 answer 文本的轻量命中检查，可为空。
+- `notes`：备注。
+
+本地私有评估集建议从 example 复制：
+
+```bash
+cp eval/golden_queries.example.jsonl eval/golden_queries.local.jsonl
+```
+
+`eval/golden_queries.local.jsonl`、`eval/*.local.jsonl` 和 `eval/rag_eval_runs/` 已被 git ignore，避免把本地评估数据和运行结果提交到仓库。
+
+运行 search 评估：
+
+```bash
+.venv/bin/python scripts/eval_rag_v2.py \
+  --base-url http://127.0.0.1:8000 \
+  --golden-file eval/golden_queries.example.jsonl \
+  --retrieval-modes hybrid,keyword \
+  --top-k 5
+```
+
+同时运行 answer 并检查 `must_contain_any`：
+
+```bash
+.venv/bin/python scripts/eval_rag_v2.py \
+  --base-url http://127.0.0.1:8000 \
+  --golden-file eval/golden_queries.example.jsonl \
+  --retrieval-modes hybrid,keyword \
+  --top-k 5 \
+  --run-answer
+```
+
+输出 JSON 包含：
+
+- `summary`：整体指标摘要。
+- `results`：每个 query / retrieval mode 的详细结果。
+
+当前指标包括：
+
+- `expected_terms` recall。
+- `expected_chunk_ids` recall。
+- `expected_paper_ids` recall。
+- `answer_contains_any_rate`。
+
+这些指标可以用于比较 `hybrid` / `keyword`，也可以作为后续版本对比的基础。
+
+当前边界：
+
+- 不是 LLM-as-judge。
+- 不调用外部 API。
+- 不替代人工评估。
+- 这是后续更换 embedding、Qdrant、reranker 前的基线机制。
+
 ## 尚未实现
 
 - 真实 sentence-transformers embedding。
