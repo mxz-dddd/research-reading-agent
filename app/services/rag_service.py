@@ -5,9 +5,13 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 
+from app.core.config import settings
+from app.rag.chunking import ContextualChunker
+from app.rag.retrievers import HybridRetriever
 from app.repositories.paper_repo import PaperRepository
 from app.repositories.rag_repo import RagChunkRepository
 from app.repositories.rag_trace_repo import RagTraceRepository
+from app.services.context_service import ContextService
 from app.schemas.paper import PaperRead
 from app.schemas.rag import (
     RagAnswerResponse,
@@ -21,6 +25,7 @@ from app.schemas.rag import (
 
 
 RAG_V1_WARNING = "RAG v1 基于本地关键词检索生成保守回答，不代表完整语义理解。"
+RAG_V2_WARNING = "RAG v2 使用 contextual chunk、hybrid retrieval、RRF fusion 和轻量 rerank 生成证据约束回答。"
 
 
 class RagService:
@@ -28,12 +33,15 @@ class RagService:
         self.paper_repo = PaperRepository()
         self.rag_repo = RagChunkRepository()
         self.trace_repo = RagTraceRepository()
+        self.context_service = ContextService()
 
     def index_paper_for_rag(
         self,
         paper_id: str,
         chunk_size: int = 800,
         chunk_overlap: int = 120,
+        index_version: str = "hybrid_v2",
+        chunker_version: str = "contextual_v1",
     ) -> RagIndexResponse:
         warnings: list[str] = []
         paper = self.paper_repo.get(int(paper_id))
@@ -49,7 +57,17 @@ class RagService:
                 error="没有可用于 RAG 索引的论文文本。",
             )
 
-        chunks = self._split_text(text, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+        chunker = ContextualChunker()
+        chunks = chunker.split(
+            text=text,
+            paper_title=paper.title,
+            source_type=source_type,
+            source_path=source_path,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            chunker_version=chunker_version,
+            index_version=index_version,
+        )
         self.rag_repo.delete_chunks_by_paper_id(str(paper_id))
         for index, chunk in enumerate(chunks):
             self.rag_repo.create_chunk(
@@ -59,14 +77,20 @@ class RagService:
                     source_type=source_type,
                     source_path=source_path,
                     chunk_index=index,
-                    content=chunk,
-                    content_preview=self._preview(chunk),
+                    content=chunk["content"],
+                    content_preview=self._preview(chunk["content"]),
                     metadata={
                         "paper_title": paper.title,
                         "ingest_status": paper.ingest_status,
                         "chunk_size": chunk_size,
                         "chunk_overlap": chunk_overlap,
                     },
+                    contextual_header=chunk["contextual_header"],
+                    section_title=chunk["section_title"],
+                    content_for_embedding=chunk["content_for_embedding"],
+                    token_count=chunk["token_count"],
+                    chunker_version=chunk["chunker_version"],
+                    index_version=chunk["index_version"],
                 )
             )
 
@@ -83,6 +107,9 @@ class RagService:
         query: str,
         top_k: int = 5,
         paper_id: str | None = None,
+        user_id: str = "default",
+        session_id: str = "default",
+        retrieval_mode: str | None = None,
         save_trace: bool = True,
     ) -> RagSearchResponse:
         if not query.strip():
@@ -95,7 +122,21 @@ class RagService:
                 error="empty query",
             )
 
-        chunks = self.rag_repo.search_chunks(query=query, top_k=top_k, paper_id=paper_id)
+        mode = retrieval_mode or settings.rag_retrieval_mode
+        chunks, pipeline = self._retrieve_chunks(
+            query=query,
+            top_k=top_k,
+            paper_id=paper_id,
+            retrieval_mode=mode,
+        )
+        context_pack = self.context_service.build_context_pack(
+            query=query,
+            mode="search",
+            evidence_chunks=chunks,
+            user_id=user_id,
+            session_id=session_id,
+            paper_id=paper_id,
+        )
         message = None
         if not chunks:
             message = "当前已索引论文中没有找到足够依据。"
@@ -109,7 +150,14 @@ class RagService:
                 top_k=top_k,
                 evidence_chunks=chunks,
                 answer=None,
-                metadata={"source": "rag_search", "message": message, "score_summary": self._score_summary(chunks)},
+                metadata={
+                    "source": "rag_search",
+                    "message": message,
+                    "score_summary": self._score_summary(chunks),
+                    "pipeline": pipeline,
+                    "context_pack_id": context_pack.context_pack_id,
+                    "retrieval_mode": mode,
+                },
             )
 
         return RagSearchResponse(
@@ -121,6 +169,10 @@ class RagService:
             error=None,
             trace_id=trace_id,
             trace_warning=trace_warning,
+            retrieval_mode=mode,
+            context_pack_id=context_pack.context_pack_id,
+            context_pack=context_pack.model_dump(),
+            pipeline=pipeline,
         )
 
     def answer_with_rag(
@@ -128,6 +180,9 @@ class RagService:
         query: str,
         top_k: int = 5,
         paper_id: str | None = None,
+        user_id: str = "default",
+        session_id: str = "default",
+        retrieval_mode: str | None = None,
         save_trace: bool = True,
     ) -> RagAnswerResponse:
         if not query.strip():
@@ -136,12 +191,22 @@ class RagService:
                 query=query,
                 answer="query 为空，无法执行 RAG 回答。",
                 evidence_chunks=[],
-                warning=RAG_V1_WARNING,
+                warning=self._warning_for_mode(retrieval_mode or settings.rag_retrieval_mode),
                 no_evidence=True,
                 error="empty query",
             )
 
-        search_result = self.search_rag(query=query, top_k=top_k, paper_id=paper_id, save_trace=False)
+        mode = retrieval_mode or settings.rag_retrieval_mode
+        search_result = self.search_rag(
+            query=query,
+            top_k=top_k,
+            paper_id=paper_id,
+            user_id=user_id,
+            session_id=session_id,
+            retrieval_mode=mode,
+            save_trace=False,
+        )
+        warning = self._warning_for_mode(mode)
         if not search_result.evidence_chunks:
             answer = "当前已索引论文中没有检索到足够证据，无法基于文档回答该问题。"
             trace_id = None
@@ -156,8 +221,11 @@ class RagService:
                     answer=answer,
                     metadata={
                         "source": "rag_answer",
-                        "warning": RAG_V1_WARNING,
+                        "warning": warning,
                         "score_summary": self._score_summary([]),
+                        "pipeline": search_result.pipeline,
+                        "context_pack_id": search_result.context_pack_id,
+                        "retrieval_mode": mode,
                     },
                 )
             return RagAnswerResponse(
@@ -165,28 +233,43 @@ class RagService:
                 query=query,
                 answer=answer,
                 evidence_chunks=[],
-                warning=RAG_V1_WARNING,
+                warning=warning,
                 no_evidence=True,
                 error=search_result.error,
                 trace_id=trace_id,
                 trace_warning=trace_warning,
+                retrieval_mode=mode,
+                context_pack_id=search_result.context_pack_id,
+                context_pack=search_result.context_pack,
+                pipeline=search_result.pipeline,
             )
 
+        intro = (
+            "以下回答基于 contextual hybrid RAG 检索到的 evidence："
+            if mode == "hybrid"
+            else "以下回答基于已索引论文片段："
+        )
         lines = [
-            "以下回答基于已索引论文片段：",
+            intro,
             "命中的 evidence 主要包括：",
         ]
         for index, chunk in enumerate(search_result.evidence_chunks, start=1):
             terms = ", ".join(chunk.matched_terms) if chunk.matched_terms else "未记录命中词"
+            retrieval_scores = ", ".join(
+                f"{key}={value:.4f}" for key, value in chunk.retrieval_scores.items()
+            ) or "未记录"
+            rerank = chunk.rerank_score if chunk.rerank_score is not None else "未启用"
             lines.append(
                 f"[Evidence {index}] P{chunk.paper_id} / chunk {chunk.chunk_index} "
-                f"(score={chunk.score}, matched_terms={terms})：{chunk.content_preview}"
+                f"/ section={chunk.section_title or 'Unknown'} "
+                f"(score={chunk.score}, matched_terms={terms}, retrieval_scores={retrieval_scores}, "
+                f"rerank_score={rerank})：{chunk.content_preview}"
             )
         lines.extend(
             [
                 "",
                 "保守结论：这些片段可以作为回答该问题的局部依据，但需要结合完整论文上下文复核。",
-                "RAG v1 使用关键词 / token overlap 检索，结果可能不等价于完整语义理解。",
+                warning,
             ]
         )
         answer = "\n".join(lines)
@@ -202,8 +285,11 @@ class RagService:
                 answer=answer,
                 metadata={
                     "source": "rag_answer",
-                    "warning": RAG_V1_WARNING,
+                    "warning": warning,
                     "score_summary": self._score_summary(search_result.evidence_chunks),
+                    "pipeline": search_result.pipeline,
+                    "context_pack_id": search_result.context_pack_id,
+                    "retrieval_mode": mode,
                 },
             )
 
@@ -212,11 +298,15 @@ class RagService:
             query=query,
             answer=answer,
             evidence_chunks=search_result.evidence_chunks,
-            warning=RAG_V1_WARNING,
+            warning=warning,
             no_evidence=False,
             error=None,
             trace_id=trace_id,
             trace_warning=trace_warning,
+            retrieval_mode=mode,
+            context_pack_id=search_result.context_pack_id,
+            context_pack=search_result.context_pack,
+            pipeline=search_result.pipeline,
         )
 
     def get_latest_traces(self, limit: int = 10) -> list[RagTraceRead]:
@@ -305,3 +395,26 @@ class RagService:
             "max_score": max(chunk.score for chunk in chunks),
             "matched_terms": sorted({term for chunk in chunks for term in chunk.matched_terms}),
         }
+
+    def _retrieve_chunks(
+        self,
+        *,
+        query: str,
+        top_k: int,
+        paper_id: str | None,
+        retrieval_mode: str,
+    ) -> tuple[list[RagSearchChunk], dict[str, Any]]:
+        if retrieval_mode == "keyword":
+            chunks = self.rag_repo.search_chunks(query=query, top_k=top_k, paper_id=paper_id)
+            return chunks, {
+                "retrieval_mode": "keyword",
+                "sparse_candidate_count": len(chunks),
+                "dense_candidate_count": 0,
+                "fused_candidate_count": len(chunks),
+                "rerank_enabled": False,
+            }
+        retriever = HybridRetriever(self.rag_repo, settings)
+        return retriever.search(query=query, top_k=top_k, paper_id=paper_id)
+
+    def _warning_for_mode(self, retrieval_mode: str) -> str:
+        return RAG_V2_WARNING if retrieval_mode == "hybrid" else RAG_V1_WARNING

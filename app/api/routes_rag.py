@@ -32,6 +32,8 @@ def index_paper_for_rag(payload: RagIndexRequest) -> RagIndexResponse:
         paper_id=payload.paper_id,
         chunk_size=payload.chunk_size,
         chunk_overlap=payload.chunk_overlap,
+        index_version=payload.index_version,
+        chunker_version=payload.chunker_version,
     )
 
 
@@ -41,6 +43,9 @@ def search_rag(payload: RagSearchRequest) -> RagSearchResponse:
         query=payload.query,
         top_k=payload.top_k,
         paper_id=payload.paper_id,
+        user_id=payload.user_id,
+        session_id=payload.session_id,
+        retrieval_mode=payload.retrieval_mode,
     )
 
 
@@ -50,6 +55,9 @@ def answer_with_rag(payload: RagAnswerRequest) -> RagAnswerResponse:
         query=payload.query,
         top_k=payload.top_k,
         paper_id=payload.paper_id,
+        user_id=payload.user_id,
+        session_id=payload.session_id,
+        retrieval_mode=payload.retrieval_mode,
     )
 
 

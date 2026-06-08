@@ -188,6 +188,30 @@ def init_db() -> None:
             )
             """
         )
+        _add_column_if_missing(conn, "rag_chunks", "contextual_header", "TEXT")
+        _add_column_if_missing(conn, "rag_chunks", "section_title", "TEXT")
+        _add_column_if_missing(conn, "rag_chunks", "content_for_embedding", "TEXT")
+        _add_column_if_missing(conn, "rag_chunks", "token_count", "INTEGER DEFAULT 0")
+        _add_column_if_missing(conn, "rag_chunks", "chunker_version", "TEXT DEFAULT 'contextual_v1'")
+        _add_column_if_missing(conn, "rag_chunks", "index_version", "TEXT DEFAULT 'hybrid_v2'")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS context_packs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                context_pack_id TEXT NOT NULL UNIQUE,
+                user_id TEXT NOT NULL,
+                session_id TEXT NOT NULL,
+                query TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                paper_id TEXT,
+                token_budget INTEGER NOT NULL,
+                estimated_tokens INTEGER NOT NULL,
+                item_count INTEGER NOT NULL,
+                context_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS rag_traces (

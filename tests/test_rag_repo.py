@@ -42,6 +42,28 @@ def test_rag_repo_create_and_list_chunks(rag_repo: RagChunkRepository) -> None:
     assert created.chunk_id == "chunk-1"
     assert len(chunks) == 1
     assert chunks[0].metadata["paper_title"] == "Fake Paper"
+    assert chunks[0].chunker_version == "contextual_v1"
+    assert chunks[0].index_version == "hybrid_v2"
+
+
+def test_rag_repo_create_and_search_contextual_fields(rag_repo: RagChunkRepository) -> None:
+    payload = sample_chunk("chunk-context", "Timing systems use correction.")
+    payload.contextual_header = "Paper: Fake Paper\nSection: Propagation Error\nChunk: 0\nSource: local_text"
+    payload.section_title = "Propagation Error"
+    payload.content_for_embedding = payload.contextual_header + "\n" + payload.content
+    payload.token_count = 12
+
+    created = rag_repo.create_chunk(payload)
+    listed = rag_repo.list_all_chunks("12")
+    results = rag_repo.search_chunks("propagation error", top_k=5)
+
+    assert created.section_title == "Propagation Error"
+    assert listed[0].content_for_embedding
+    assert listed[0].token_count == 12
+    assert results[0].chunk_id == "chunk-context"
+    assert results[0].section_title == "Propagation Error"
+    assert results[0].contextual_header
+    assert results[0].retrieval_scores["sparse"] > 0
 
 
 def test_rag_repo_search_chunks(rag_repo: RagChunkRepository) -> None:

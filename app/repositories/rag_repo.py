@@ -13,7 +13,7 @@ def _now() -> str:
 
 def _row_to_chunk(row: Row) -> RagChunkRead:
     data = dict(row)
-    data["metadata"] = json.loads(data.pop("metadata_json"))
+    data["metadata"] = json.loads(data.pop("metadata_json") or "{}")
     return RagChunkRead(**data)
 
 
@@ -37,9 +37,11 @@ class RagChunkRepository:
                 """
                 INSERT INTO rag_chunks (
                     chunk_id, paper_id, source_type, source_path, chunk_index,
-                    content, content_preview, metadata_json, created_at
+                    content, content_preview, metadata_json, contextual_header,
+                    section_title, content_for_embedding, token_count,
+                    chunker_version, index_version, created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     payload.chunk_id,
@@ -50,6 +52,12 @@ class RagChunkRepository:
                     payload.content,
                     payload.content_preview,
                     json.dumps(payload.metadata, ensure_ascii=False),
+                    payload.contextual_header,
+                    payload.section_title,
+                    payload.content_for_embedding,
+                    payload.token_count,
+                    payload.chunker_version,
+                    payload.index_version,
                     now,
                 ),
             )
@@ -69,6 +77,19 @@ class RagChunkRepository:
                 "SELECT * FROM rag_chunks WHERE paper_id = ? ORDER BY chunk_index ASC",
                 (str(paper_id),),
             ).fetchall()
+        return [_row_to_chunk(row) for row in rows]
+
+    def list_all_chunks(self, paper_id: str | None = None) -> list[RagChunkRead]:
+        with get_connection() as conn:
+            if paper_id is not None:
+                rows = conn.execute(
+                    "SELECT * FROM rag_chunks WHERE paper_id = ? ORDER BY paper_id ASC, chunk_index ASC",
+                    (str(paper_id),),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM rag_chunks ORDER BY paper_id ASC, chunk_index ASC"
+                ).fetchall()
         return [_row_to_chunk(row) for row in rows]
 
     def search_chunks(
@@ -95,7 +116,12 @@ class RagChunkRepository:
         for row in rows:
             chunk = _row_to_chunk(row)
             content_lower = chunk.content.lower()
-            content_tokens = _tokens(chunk.content)
+            searchable_text = "\n".join(
+                part
+                for part in [chunk.contextual_header, chunk.section_title, chunk.content]
+                if part
+            )
+            content_tokens = _tokens(searchable_text)
             overlap = query_tokens.intersection(content_tokens)
             phrase_bonus = 2 if query_lower in content_lower else 0
             score = float(len(overlap) + phrase_bonus)
@@ -117,6 +143,9 @@ class RagChunkRepository:
                     source_path=chunk.source_path,
                     metadata=chunk.metadata,
                     score_reason=score_reason,
+                    retrieval_scores={"sparse": score},
+                    section_title=chunk.section_title,
+                    contextual_header=chunk.contextual_header,
                 )
             )
 

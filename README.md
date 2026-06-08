@@ -173,20 +173,21 @@ AgentService 已做低风险接入：
 .venv/bin/python scripts/demo_research_tool_mux.py
 ```
 
-## 7. 本地检索与 RAG v1
+## 7. 本地检索与 RAG v1 / RAG v2
 
-RAG v1 是这个工作台里的支撑模块。它的作用是让已经 ingest 的论文文本可以被再次查询，并记录每次查询命中了哪些证据片段。当前实现是本地轻量版本：
+RAG 是这个工作台里的支撑模块。它的作用是让已经 ingest 的论文文本可以被再次查询，并记录每次查询命中了哪些证据片段。当前实现包含两种本地轻量模式：
 
 - 使用 SQLite 保存 `rag_chunks`。
-- 将论文文本切分为 chunks。
-- 使用 keyword / token overlap 做检索。
+- keyword 模式保留 RAG v1：使用 keyword / token overlap 做检索。
+- hybrid 模式提供 RAG v2：使用 contextual chunk、hash embedding dense retrieval、sparse retrieval、RRF fusion 和 deterministic rerank。
 - 返回 evidence chunks、`matched_terms` 和 `score_reason`。
 - 没有证据时不编造答案。
 - 每次 RAG search / answer 可以保存 trace。
+- 每次 search / answer 会构造 Context Pack，记录 session recent search、active paper 和 RAG evidence 上下文。
 - 支持 trace-level feedback 和 evidence-level feedback。
 - 可以计算 Recall@K、MRR、nDCG@5 等轻量指标。
 
-当前版本不是 embedding / Qdrant 版本，也不是语义向量检索。后续可以替换 retrieval backend，例如接入 embedding、Qdrant、hybrid retrieval 或 reranker。
+RAG v2 是本地轻量 hybrid RAG，不依赖外部 API，不引入 Qdrant，也不是生产级向量库。当前 dense retrieval 使用纯 Python hash embedding，后续可以替换 embedding provider，例如 sentence-transformers，或接入 Qdrant、外部 reranker、GraphRAG 等更强后端。
 
 RAG answer 只基于已索引的文本片段做保守回答，不等价于通读全部论文后的完整综合判断。
 
@@ -201,6 +202,8 @@ GET  /api/rag/traces/{trace_id}
 GET  /api/rag/evaluation/summary
 GET  /api/rag/evaluation/evidence-summary
 ```
+
+详细说明见 [docs/rag_v2_context_pack.md](docs/rag_v2_context_pack.md)。
 
 ## 8. 前端界面
 
@@ -314,14 +317,15 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -p no:cacheprovider tests
 - evaluation
 - closed-loop dry_run
 
-当前本地测试结果为 `132 passed`。
+当前本地测试结果为 `144 passed`。
 
 ## 13. 当前边界
 
 这个项目仍然是本地原型，有几个边界需要明确：
 
-- RAG v1 是本地关键词 / token overlap 检索，不是语义向量检索。
-- 当前没有接入 Qdrant。
+- RAG v1 keyword 模式仍是本地关键词 / token overlap 检索。
+- RAG v2 hybrid 模式是本地轻量 hybrid retrieval，不是 Qdrant / 生产级向量库。
+- 当前没有接入真实 sentence-transformers、Qdrant 或外部 reranker。
 - `dry_run` 是模拟流程，不代表真实论文检索结果。
 - SQLite 适合本地原型，不是生产数据库。
 - Streamlit 是产品原型，不是正式前端。
@@ -333,9 +337,10 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -p no:cacheprovider tests
 
 后续可以继续补这些方向：
 
-- embedding + Qdrant
-- hybrid retrieval
-- reranker
+- sentence-transformers embedding provider
+- Qdrant 向量库后端
+- 外部 reranker
+- GraphRAG
 - 异步任务队列
 - 用户和项目隔离
 - PostgreSQL
@@ -349,6 +354,7 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -p no:cacheprovider tests
 - 系统架构说明：[docs/agent_architecture.md](docs/agent_architecture.md)
 - 核心 API 清单：[docs/core_api_checklist.md](docs/core_api_checklist.md)
 - 本地 RAG v1 能力边界：[docs/rag_v1_quality_boundary.md](docs/rag_v1_quality_boundary.md)
+- RAG v2 与 Context Pack：[docs/rag_v2_context_pack.md](docs/rag_v2_context_pack.md)
 - 发布前检查清单：[docs/project_freeze_checklist.md](docs/project_freeze_checklist.md)
 - Streamlit 前端说明：[frontend/README.md](frontend/README.md)
 - 本地 curl 演示脚本：[scripts/demo_curl_examples.sh](scripts/demo_curl_examples.sh)
