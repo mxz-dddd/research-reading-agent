@@ -15,6 +15,7 @@ PAGE_RUN_WORKFLOW = "运行研究流程"
 PAGE_WORKFLOW_HISTORY = "研究流程历史"
 PAGE_WORKFLOW_REPORT = "研究报告"
 PAGE_RAG_QA = "论文查询与复盘"
+PAGE_RAG_V2_DEBUGGER = "RAG v2 调试台"
 PAGE_RAG_EVALUATION = "检索质量评估"
 
 
@@ -62,6 +63,42 @@ def api_request(method: str, path: str, *, json: dict[str, Any] | None = None) -
     if response.status_code >= 400:
         return payload, f"请求失败，HTTP 状态码：{response.status_code}。请检查后端是否启动。"
     return payload, None
+
+
+def safe_api_get(path: str, params: dict | None = None) -> tuple[bool, dict | None, str | None]:
+    base_url = normalize_base_url(st.session_state.get("api_base_url", DEFAULT_API_BASE_URL))
+    try:
+        response = requests.get(f"{base_url}{path}", params=params, timeout=15)
+        if not response.ok:
+            return False, None, f"请求失败，HTTP {response.status_code}：{response.text[:500]}"
+        data = response.json()
+        if not isinstance(data, dict):
+            return False, None, "接口返回的 JSON 不是对象。"
+        return True, data, None
+    except requests.exceptions.RequestException:
+        return False, None, BACKEND_HELP
+    except ValueError as exc:
+        return False, None, f"接口返回不是有效 JSON：{exc}"
+    except Exception as exc:
+        return False, None, f"请求异常：{exc}"
+
+
+def safe_api_post(path: str, payload: dict) -> tuple[bool, dict | None, str | None]:
+    base_url = normalize_base_url(st.session_state.get("api_base_url", DEFAULT_API_BASE_URL))
+    try:
+        response = requests.post(f"{base_url}{path}", json=payload, timeout=15)
+        if not response.ok:
+            return False, None, f"请求失败，HTTP {response.status_code}：{response.text[:500]}"
+        data = response.json()
+        if not isinstance(data, dict):
+            return False, None, "接口返回的 JSON 不是对象。"
+        return True, data, None
+    except requests.exceptions.RequestException:
+        return False, None, BACKEND_HELP
+    except ValueError as exc:
+        return False, None, f"接口返回不是有效 JSON：{exc}"
+    except Exception as exc:
+        return False, None, f"请求异常：{exc}"
 
 
 def render_error(error: str | None) -> None:
@@ -149,6 +186,188 @@ def metric_value(value: Any) -> str:
     if isinstance(value, float):
         return f"{value:.3f}"
     return str(value)
+
+
+def _short_text(value: object, max_len: int = 300) -> str:
+    text = " ".join(str(value or "").split())
+    return text[:max_len]
+
+
+def _normalize_evidence_source(value: Any) -> list[dict]:
+    if isinstance(value, list):
+        return [item for item in value if isinstance(item, dict)]
+    if isinstance(value, dict):
+        for key in ("chunks", "evidence_chunks", "evidence", "results", "items"):
+            nested = value.get(key)
+            if isinstance(nested, list) and nested:
+                return [item for item in nested if isinstance(item, dict)]
+        return [value]
+    return []
+
+
+def _extract_evidence_items(response: dict) -> list[dict]:
+    candidates = [
+        response.get("chunks"),
+        response.get("evidence_chunks"),
+        response.get("evidence"),
+        response.get("results"),
+        response.get("items"),
+    ]
+
+    answer = response.get("answer")
+    if isinstance(answer, dict):
+        candidates.append(answer.get("evidence"))
+
+    data = response.get("data")
+    if isinstance(data, dict):
+        candidates.append(data.get("chunks"))
+
+    for candidate in candidates:
+        items = _normalize_evidence_source(candidate)
+        if items:
+            return items
+    return []
+
+
+def _extract_evidence_rows(response: dict) -> list[dict]:
+    rows = []
+    for rank, item in enumerate(_extract_evidence_items(response), start=1):
+        retrieval_scores = item.get("retrieval_scores") or {}
+        preview = item.get("content_preview") or item.get("content") or item.get("text") or ""
+        rows.append(
+            {
+                "rank": rank,
+                "paper_id": item.get("paper_id"),
+                "section_title": item.get("section_title"),
+                "chunk_index": item.get("chunk_index"),
+                "score": item.get("score"),
+                "sparse_score": retrieval_scores.get("sparse", 0.0),
+                "dense_score": retrieval_scores.get("dense", 0.0),
+                "rrf_score": retrieval_scores.get("rrf", 0.0),
+                "rerank_score": item.get("rerank_score"),
+                "score_reason": item.get("score_reason") or "",
+                "content_preview": _short_text(preview),
+            }
+        )
+    return rows
+
+
+def _render_evidence_debugger(response: dict) -> None:
+    st.subheader("Evidence Debugger")
+    items = _extract_evidence_items(response)
+    rows = _extract_evidence_rows(response)
+    if not rows:
+        st.info("暂无 evidence。")
+        return
+
+    st.dataframe(rows, use_container_width=True)
+    for index, item in enumerate(items, start=1):
+        title = f"Evidence #{index} | paper_id={item.get('paper_id') or '-'} | section={item.get('section_title') or '-'}"
+        with st.expander(title, expanded=index == 1):
+            if item.get("contextual_header"):
+                st.markdown("**contextual_header**")
+                st.text(item.get("contextual_header"))
+            st.markdown("**content**")
+            st.write(item.get("content") or item.get("text") or item.get("content_preview") or "")
+            st.markdown("**raw JSON**")
+            st.json(item)
+
+
+def _count_context_item_types(items: list) -> dict:
+    counts: dict[str, int] = {}
+    for item in items:
+        if isinstance(item, dict):
+            item_type = item.get("item_type")
+        else:
+            item_type = getattr(item, "item_type", None)
+        if item_type:
+            counts[item_type] = counts.get(item_type, 0) + 1
+    return counts
+
+
+def _render_single_context_pack(context_pack: dict, title: str = "Context Pack") -> None:
+    st.markdown(f"### {title}")
+    items = context_pack.get("items") or []
+    item_count = context_pack.get("item_count")
+    if item_count is None:
+        item_count = len(items)
+    summary = {
+        "context_pack_id": context_pack.get("context_pack_id"),
+        "estimated_tokens": context_pack.get("estimated_tokens", 0),
+        "token_budget": context_pack.get("token_budget", 0),
+        "item_count": item_count,
+        "item_type_counts": _count_context_item_types(items),
+    }
+    st.json(summary)
+
+    grouped: dict[str, list[dict]] = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        item_type = item.get("item_type") or "unknown"
+        grouped.setdefault(item_type, []).append(item)
+
+    for item_type, group_items in grouped.items():
+        with st.expander(f"{item_type} ({len(group_items)})", expanded=False):
+            for index, item in enumerate(group_items, start=1):
+                st.markdown(f"**Item {index}**")
+                st.write(item.get("content") or "")
+                st.caption(f"score: {item.get('score')} | reason: {item.get('reason') or ''}")
+                if item.get("metadata"):
+                    st.json(item.get("metadata"))
+
+    with st.expander("raw context_pack JSON", expanded=False):
+        st.json(context_pack)
+
+
+def _render_context_pack_viewer(response: dict) -> None:
+    st.subheader("Context Pack Viewer")
+    has_context_pack = False
+    context_pack = response.get("context_pack")
+    context_pack_id = response.get("context_pack_id")
+
+    if isinstance(context_pack, dict):
+        _render_single_context_pack(context_pack, "当前响应中的 Context Pack")
+        has_context_pack = True
+    elif context_pack_id:
+        st.info(f"当前响应包含 context_pack_id：{context_pack_id}。可在下方手动加载。")
+
+    manual_context_pack_id = st.text_input("context_pack_id", value=str(context_pack_id or ""), key="rag_v2_context_pack_id")
+    if st.button("加载 Context Pack", disabled=not manual_context_pack_id.strip()):
+        ok, data, error = safe_api_get(f"/api/rag/context-packs/{manual_context_pack_id.strip()}")
+        if ok and data:
+            st.session_state["rag_v2_loaded_context_pack"] = data
+        else:
+            st.error(error or "Context Pack 加载失败。")
+
+    loaded_context_pack = st.session_state.get("rag_v2_loaded_context_pack")
+    if isinstance(loaded_context_pack, dict):
+        _render_single_context_pack(loaded_context_pack, "手动加载的 Context Pack")
+        has_context_pack = True
+
+    if not has_context_pack and not context_pack_id:
+        st.info("暂无 Context Pack。")
+
+
+def _render_pipeline_viewer(response: dict) -> None:
+    st.subheader("Pipeline Viewer")
+    pipeline = response.get("pipeline")
+    if not isinstance(pipeline, dict) or not pipeline:
+        st.info("暂无 pipeline 信息。")
+        return
+
+    summary = {
+        "retrieval_mode": pipeline.get("retrieval_mode"),
+        "sparse_candidate_count": pipeline.get("sparse_candidate_count", 0),
+        "dense_candidate_count": pipeline.get("dense_candidate_count", 0),
+        "fused_candidate_count": pipeline.get("fused_candidate_count", 0),
+        "rerank_enabled": pipeline.get("rerank_enabled", False),
+        "embedding_provider": pipeline.get("embedding_provider"),
+        "rrf_k": pipeline.get("rrf_k"),
+    }
+    st.table(summary)
+    with st.expander("raw pipeline JSON", expanded=False):
+        st.json(pipeline)
 
 
 def dashboard_page() -> None:
@@ -465,6 +684,66 @@ def rag_qa_page() -> None:
             render_json_section("原始响应 JSON", payload)
 
 
+def render_rag_v2_debugger() -> None:
+    st.header("RAG v2 调试台")
+    st.info("用于查看 contextual hybrid RAG 的 evidence、Context Pack 和 pipeline，便于调试检索结果。")
+
+    st.subheader("查询控制区")
+    col1, col2 = st.columns(2)
+    user_id = col1.text_input("user_id", value="default", key="rag_v2_user_id")
+    session_id = col2.text_input("session_id", value="default", key="rag_v2_session_id")
+
+    col1, col2, col3 = st.columns(3)
+    retrieval_mode = col1.selectbox("retrieval_mode", ["hybrid", "keyword"], key="rag_v2_retrieval_mode")
+    paper_id = col2.text_input("paper_id（可选）", value="", key="rag_v2_paper_id")
+    top_k = col3.number_input("top_k", min_value=1, max_value=20, value=5, step=1, key="rag_v2_top_k")
+    query = st.text_area("query", value="这篇论文的方法和实验结论是什么？", height=120, key="rag_v2_query")
+
+    payload: dict[str, Any] = {
+        "query": query,
+        "top_k": int(top_k),
+        "user_id": user_id,
+        "session_id": session_id,
+        "retrieval_mode": retrieval_mode,
+    }
+    if paper_id.strip():
+        payload["paper_id"] = paper_id.strip()
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("运行 RAG Search", type="primary"):
+            ok, data, error = safe_api_post("/api/rag/search", payload)
+            if ok and data:
+                st.session_state["rag_v2_debug_response"] = data
+                save_trace_id(data)
+            else:
+                st.error(error or "RAG Search 请求失败。")
+
+    with col2:
+        if st.button("运行 RAG Answer"):
+            ok, data, error = safe_api_post("/api/rag/answer", payload)
+            if ok and data:
+                st.session_state["rag_v2_debug_response"] = data
+                save_trace_id(data)
+            else:
+                st.error(error or "RAG Answer 请求失败。")
+
+    response = st.session_state.get("rag_v2_debug_response")
+    if not isinstance(response, dict):
+        st.info("请先运行 RAG Search 或 RAG Answer。")
+        return
+
+    answer = response.get("answer") or response.get("final_answer")
+    if answer:
+        st.subheader("回答结果")
+        st.markdown(str(answer))
+
+    _render_evidence_debugger(response)
+    _render_context_pack_viewer(response)
+    _render_pipeline_viewer(response)
+    render_json_section("查看原始响应 JSON", response)
+
+
 def rag_evaluation_page() -> None:
     st.header("检索质量评估")
     st.info("这里用于查看查询 trace、人工反馈和 evidence-level 评估指标。适合分析检索质量和后续优化方向。")
@@ -551,6 +830,7 @@ def main() -> None:
                 PAGE_WORKFLOW_HISTORY,
                 PAGE_WORKFLOW_REPORT,
                 PAGE_RAG_QA,
+                PAGE_RAG_V2_DEBUGGER,
                 PAGE_RAG_EVALUATION,
             ],
         )
@@ -578,6 +858,8 @@ def main() -> None:
         workflow_report_page()
     elif page == PAGE_RAG_QA:
         rag_qa_page()
+    elif page == PAGE_RAG_V2_DEBUGGER:
+        render_rag_v2_debugger()
     elif page == PAGE_RAG_EVALUATION:
         rag_evaluation_page()
 
