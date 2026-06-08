@@ -26,3 +26,7 @@ data/archives/**/*.json
 .env
 .env.*
 !.env.example
+
+eval/golden_queries.local.jsonl
+eval/*.local.jsonl
+eval/rag_eval_runs/

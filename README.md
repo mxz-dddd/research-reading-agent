@@ -230,6 +230,31 @@ GET  /api/rag/evaluation/evidence-summary
 
 脚本会依次检查 `/health`、可选 `/api/rag/index`、`/api/rag/search`、`/api/rag/answer`，并在返回 `context_pack_id` 时读取 `/api/rag/context-packs/{context_pack_id}`。
 
+新增 RAG v2 golden queries 质量评估脚本，用于在替换 embedding、向量库或 reranker 前形成本地可回归的检索质量基线。示例文件位于 `eval/golden_queries.example.jsonl`；本地私有评估集建议复制为 `eval/golden_queries.local.jsonl`，该文件已被 git ignore。
+
+只评估 search：
+
+```bash
+.venv/bin/python scripts/eval_rag_v2.py \
+  --base-url http://127.0.0.1:8000 \
+  --golden-file eval/golden_queries.example.jsonl \
+  --retrieval-modes hybrid,keyword \
+  --top-k 5
+```
+
+同时做 answer 文本轻量命中检查：
+
+```bash
+.venv/bin/python scripts/eval_rag_v2.py \
+  --base-url http://127.0.0.1:8000 \
+  --golden-file eval/golden_queries.example.jsonl \
+  --retrieval-modes hybrid,keyword \
+  --top-k 5 \
+  --run-answer
+```
+
+当前指标是轻量规则评估，不是 LLM-as-judge；适合做本地回归和版本对比。后续可以扩展为 RAGAS、人工标注集或更严格的 citation faithfulness 检查。
+
 详细说明见 [docs/rag_v2_context_pack.md](docs/rag_v2_context_pack.md)。
 
 ## 8. 前端界面
