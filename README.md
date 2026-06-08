@@ -115,7 +115,65 @@ POST /api/workflow/run
 
 这样的设计比较直接，便于测试，也方便后续替换其中某一层。
 
-## 6. 本地检索与 RAG v1
+## 6. ToolMux：内部工具调用多路复用层
+
+ToolMux 是一个轻量的 Python 内部工具调度层，设计上参考了 callmux 的工具调用多路复用思想。它不是完整 MCP callmux，也不直接处理 MCP transport；在本项目中，它用于优化 `research_agent` 内部工具函数的调度方式。
+
+当前 ToolMux 支持：
+
+- `call()`：单次调用一个已注册工具。
+- `parallel()`：并发调用多个互不依赖的工具。
+- `batch()`：对同一个工具使用多组参数批量调用。
+- read-only cache：只缓存真正只读的工具结果。
+- partial failure：并发或批量调用中，单个工具失败不会拖垮整体，会返回 `failed_indexes`。
+
+```mermaid
+flowchart TD
+    A[AgentService] --> B[ToolMux]
+    B --> C[ToolRegistry]
+    B --> D[ToolCache]
+    B --> E[call / parallel / batch]
+    C --> F[Research Agent Tools]
+    F --> G[search_papers]
+    F --> H[list_accepted_papers]
+    F --> I[get_paper_detail]
+    F --> J[accept_paper / ingest_paper]
+    F --> K[generate_knowledge / generate_innovation]
+```
+
+安全边界：
+
+- ToolMux 支持显式 `read_only` 标记，避免仅凭工具名前缀误判缓存策略。
+- `search_papers` 虽然是 `search` 前缀，但当前实现会写入搜索结果数据库，因此在 `tool_mux_factory.py` 中显式标记为 `read_only=False`。
+- `accept_paper`、`ingest_paper`、`generate_knowledge`、`generate_innovation` 都是非只读工具，不进入缓存。
+
+AgentService 已做低风险接入：
+
+- 在 `app/services/agent_service.py` 中新增 `self.tool_mux`。
+- 新增 `run_parallel_tools()`，用于显式调用 ToolMux 的并行调度能力。
+- 没有修改原有 `query()` 主流程。
+- 没有替换现有 intent 分发逻辑。
+
+关键文件：
+
+- `app/services/tool_mux.py`
+- `app/agent/tool_mux_factory.py`
+- `app/services/agent_service.py`
+- `scripts/demo_tool_mux.py`
+- `scripts/demo_research_tool_mux.py`
+- `tests/test_tool_mux.py`
+- `tests/test_agent_tool_mux_integration.py`
+
+验证命令：
+
+```bash
+.venv/bin/python -m pytest tests/test_tool_mux.py tests/test_agent_tool_mux_integration.py
+
+.venv/bin/python scripts/demo_tool_mux.py
+.venv/bin/python scripts/demo_research_tool_mux.py
+```
+
+## 7. 本地检索与 RAG v1
 
 RAG v1 是这个工作台里的支撑模块。它的作用是让已经 ingest 的论文文本可以被再次查询，并记录每次查询命中了哪些证据片段。当前实现是本地轻量版本：
 
@@ -144,7 +202,7 @@ GET  /api/rag/evaluation/summary
 GET  /api/rag/evaluation/evidence-summary
 ```
 
-## 7. 前端界面
+## 8. 前端界面
 
 Streamlit 前端位于 `frontend/streamlit_app.py`，页面为中文：
 
@@ -158,7 +216,7 @@ Streamlit 前端位于 `frontend/streamlit_app.py`，页面为中文：
 
 这是一个产品原型，用来把后端能力组织成可操作页面。它不是最终生产级前端。
 
-## 8. 项目结构
+## 9. 项目结构
 
 ```text
 app/        FastAPI 后端、Agent 编排、service、repository 和 schema
@@ -176,7 +234,7 @@ app/main.py
 frontend/streamlit_app.py
 ```
 
-## 9. 本地启动
+## 10. 本地启动
 
 创建环境：
 
@@ -214,7 +272,7 @@ FastAPI docs: http://127.0.0.1:8000/docs
 Streamlit 前端: http://localhost:8501
 ```
 
-## 10. 快速体验
+## 11. 快速体验
 
 推荐先用 `dry_run` 跑通流程：
 
@@ -234,7 +292,7 @@ curl -X POST http://127.0.0.1:8000/api/workflow/run \
   -d '{"topic":"large language model agent","max_results":3,"accept_top_k":2,"dry_run":true,"index_rag":true}'
 ```
 
-## 11. 测试
+## 12. 测试
 
 运行全量轻量测试：
 
@@ -258,7 +316,7 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -p no:cacheprovider tests
 
 当前本地测试结果为 `132 passed`。
 
-## 12. 当前边界
+## 13. 当前边界
 
 这个项目仍然是本地原型，有几个边界需要明确：
 
@@ -271,7 +329,7 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -p no:cacheprovider tests
 - 真实论文流程依赖网络、论文源和可选 LLM 配置。
 - 飞书接口仅保留扩展雏形，不是完整 Bot。
 
-## 13. 后续计划
+## 14. 后续计划
 
 后续可以继续补这些方向：
 
@@ -286,7 +344,7 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -p no:cacheprovider tests
 
 这些能力目前不是已实现功能。
 
-## 14. 文档入口
+## 15. 文档入口
 
 - 系统架构说明：[docs/agent_architecture.md](docs/agent_architecture.md)
 - 核心 API 清单：[docs/core_api_checklist.md](docs/core_api_checklist.md)
@@ -295,6 +353,6 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -p no:cacheprovider tests
 - Streamlit 前端说明：[frontend/README.md](frontend/README.md)
 - 本地 curl 演示脚本：[scripts/demo_curl_examples.sh](scripts/demo_curl_examples.sh)
 
-## 15. License
+## 16. License
 
 License 暂未指定。
