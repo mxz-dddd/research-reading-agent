@@ -7,18 +7,26 @@ class RagIndexRequest(BaseModel):
     paper_id: str = Field(..., description="论文 ID")
     chunk_size: int = Field(default=800, ge=100, le=4000, description="chunk 字符数")
     chunk_overlap: int = Field(default=120, ge=0, le=1000, description="相邻 chunk 重叠字符数")
+    index_version: str = "hybrid_v2"
+    chunker_version: str = "contextual_v1"
 
 
 class RagSearchRequest(BaseModel):
     query: str = Field(..., description="检索问题或关键词")
     top_k: int = Field(default=5, ge=1, le=20, description="返回 evidence chunk 数量")
     paper_id: str | None = Field(default=None, description="可选论文 ID")
+    user_id: str = "default"
+    session_id: str = "default"
+    retrieval_mode: str | None = None
 
 
 class RagAnswerRequest(BaseModel):
     query: str = Field(..., description="问答问题")
     top_k: int = Field(default=5, ge=1, le=20, description="用于回答的 evidence chunk 数量")
     paper_id: str | None = Field(default=None, description="可选论文 ID")
+    user_id: str = "default"
+    session_id: str = "default"
+    retrieval_mode: str | None = None
 
 
 class RagChunkCreate(BaseModel):
@@ -30,6 +38,12 @@ class RagChunkCreate(BaseModel):
     content: str
     content_preview: str
     metadata: dict[str, Any] = {}
+    contextual_header: str | None = None
+    section_title: str | None = None
+    content_for_embedding: str | None = None
+    token_count: int = 0
+    chunker_version: str = "contextual_v1"
+    index_version: str = "hybrid_v2"
 
 
 class RagChunkRead(BaseModel):
@@ -42,6 +56,12 @@ class RagChunkRead(BaseModel):
     content: str
     content_preview: str
     metadata: dict[str, Any] = {}
+    contextual_header: str | None = None
+    section_title: str | None = None
+    content_for_embedding: str | None = None
+    token_count: int = 0
+    chunker_version: str = "contextual_v1"
+    index_version: str = "hybrid_v2"
     created_at: str
 
 
@@ -56,6 +76,10 @@ class RagSearchChunk(BaseModel):
     source_path: str | None = None
     metadata: dict[str, Any] = {}
     score_reason: str | None = None
+    retrieval_scores: dict[str, float] = {}
+    rerank_score: float | None = None
+    section_title: str | None = None
+    contextual_header: str | None = None
 
 
 class RagIndexResponse(BaseModel):
@@ -75,6 +99,10 @@ class RagSearchResponse(BaseModel):
     error: str | None = None
     trace_id: str | None = None
     trace_warning: str | None = None
+    retrieval_mode: str | None = None
+    context_pack_id: str | None = None
+    context_pack: dict[str, Any] | None = None
+    pipeline: dict[str, Any] = {}
 
 
 class RagAnswerResponse(BaseModel):
@@ -87,6 +115,10 @@ class RagAnswerResponse(BaseModel):
     error: str | None = None
     trace_id: str | None = None
     trace_warning: str | None = None
+    retrieval_mode: str | None = None
+    context_pack_id: str | None = None
+    context_pack: dict[str, Any] | None = None
+    pipeline: dict[str, Any] = {}
 
 
 class RagTraceCreate(BaseModel):

@@ -16,6 +16,12 @@ class Settings:
     feishu_enable_signature_check: bool = (
         os.getenv("FEISHU_ENABLE_SIGNATURE_CHECK", "false").lower() == "true"
     )
+    rag_retrieval_mode: str = os.getenv("RAG_RETRIEVAL_MODE", "hybrid")
+    rag_embedding_provider: str = os.getenv("RAG_EMBEDDING_PROVIDER", "hash")
+    rag_embedding_dim: int = int(os.getenv("RAG_EMBEDDING_DIM", "256"))
+    rag_rrf_k: int = int(os.getenv("RAG_RRF_K", "60"))
+    rag_rerank_enabled: bool = os.getenv("RAG_RERANK_ENABLED", "true").lower() == "true"
+    rag_context_token_budget: int = int(os.getenv("RAG_CONTEXT_TOKEN_BUDGET", "6000"))
 
 
 settings = Settings()

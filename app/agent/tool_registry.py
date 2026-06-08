@@ -152,11 +152,15 @@ class ToolRegistry:
         paper_id: int,
         chunk_size: int = 800,
         chunk_overlap: int = 120,
+        index_version: str = "hybrid_v2",
+        chunker_version: str = "contextual_v1",
     ) -> dict[str, Any]:
         return self.rag_service.index_paper_for_rag(
             paper_id=str(paper_id),
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
+            index_version=index_version,
+            chunker_version=chunker_version,
         ).model_dump()
 
     def rag_search(
@@ -165,11 +169,17 @@ class ToolRegistry:
         query: str,
         top_k: int = 5,
         paper_id: int | None = None,
+        user_id: str = "default",
+        session_id: str = "default",
+        retrieval_mode: str | None = None,
     ) -> dict[str, Any]:
         return self.rag_service.search_rag(
             query=query,
             top_k=top_k,
             paper_id=str(paper_id) if paper_id is not None else None,
+            user_id=user_id,
+            session_id=session_id,
+            retrieval_mode=retrieval_mode,
         ).model_dump()
 
     def rag_answer(
@@ -178,11 +188,17 @@ class ToolRegistry:
         query: str,
         top_k: int = 5,
         paper_id: int | None = None,
+        user_id: str = "default",
+        session_id: str = "default",
+        retrieval_mode: str | None = None,
     ) -> dict[str, Any]:
         return self.rag_service.answer_with_rag(
             query=query,
             top_k=top_k,
             paper_id=str(paper_id) if paper_id is not None else None,
+            user_id=user_id,
+            session_id=session_id,
+            retrieval_mode=retrieval_mode,
         ).model_dump()
 
     def get_latest_rag_traces(self, *, limit: int = 10) -> dict[str, Any]:
@@ -274,6 +290,8 @@ class ToolRegistry:
                 "查看最近 workflow 结果和历史记录",
                 "生成或查看 workflow 研究报告",
                 "为已 ingest 论文建立轻量 RAG 索引并检索问答",
+                "使用 contextual hybrid RAG 检索论文证据",
+                "构造 Context Pack 记录回答使用的上下文",
                 "查看 RAG evidence trace 记录",
                 "为 RAG trace 添加人工相关性标注并查看评估摘要",
                 "为单条 evidence chunk 添加相关性标注并查看 Recall@K / MRR / nDCG",

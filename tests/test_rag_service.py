@@ -10,7 +10,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from app.core import database
 from app.schemas.paper import PaperRead
-from app.services.rag_service import RAG_V1_WARNING, RagService
+from app.services.rag_service import RAG_V1_WARNING, RAG_V2_WARNING, RagService
 
 
 @pytest.fixture()
@@ -96,14 +96,39 @@ def test_rag_service_search_and_answer(
     assert answer_result.success is True
     assert answer_result.evidence_chunks
     assert "[Evidence 1]" in answer_result.answer
-    assert "以下回答基于已索引论文片段" in answer_result.answer
-    assert "RAG v1 使用关键词 / token overlap 检索" in answer_result.answer
-    assert answer_result.warning == RAG_V1_WARNING
+    assert "以下回答基于 contextual hybrid RAG 检索到的 evidence" in answer_result.answer
+    assert "retrieval_scores=" in answer_result.answer
+    assert answer_result.warning == RAG_V2_WARNING
+    assert answer_result.context_pack_id
+    assert answer_result.retrieval_mode == "hybrid"
+    assert answer_result.pipeline["retrieval_mode"] == "hybrid"
     assert answer_result.trace_id
     answer_trace = rag_service.get_trace_detail(answer_result.trace_id)
     assert answer_trace is not None
     assert answer_trace.mode == "answer"
     assert answer_trace.answer is not None
+    assert answer_trace.metadata["retrieval_mode"] == "hybrid"
+    assert answer_trace.metadata["context_pack_id"] == answer_result.context_pack_id
+    assert answer_trace.metadata["pipeline"]["retrieval_mode"] == "hybrid"
+
+
+def test_rag_service_keyword_mode_still_works(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    rag_service: RagService,
+) -> None:
+    text_path = tmp_path / "paper.txt"
+    text_path.write_text("Keyword retrieval keeps propagation error matching available.", encoding="utf-8")
+    monkeypatch.setattr(rag_service.paper_repo, "get", lambda paper_id: fake_paper(str(text_path)))
+    rag_service.index_paper_for_rag("12", chunk_size=200, chunk_overlap=20)
+
+    result = rag_service.answer_with_rag("propagation error", top_k=3, retrieval_mode="keyword")
+
+    assert result.success is True
+    assert result.evidence_chunks
+    assert result.warning == RAG_V1_WARNING
+    assert result.retrieval_mode == "keyword"
+    assert result.pipeline["retrieval_mode"] == "keyword"
 
 
 def test_rag_service_answer_without_evidence(rag_service: RagService) -> None:
@@ -113,12 +138,15 @@ def test_rag_service_answer_without_evidence(rag_service: RagService) -> None:
     assert result.evidence_chunks == []
     assert result.no_evidence is True
     assert "没有检索到足够证据" in result.answer
-    assert result.warning == RAG_V1_WARNING
+    assert result.warning == RAG_V2_WARNING
+    assert result.context_pack_id
+    assert result.pipeline["retrieval_mode"] == "hybrid"
     assert result.trace_id
     trace = rag_service.get_trace_detail(result.trace_id)
     assert trace is not None
     assert trace.no_evidence is True
     assert trace.hit_count == 0
+    assert trace.metadata["context_pack_id"] == result.context_pack_id
 
 
 def test_rag_service_handles_empty_query(rag_service: RagService) -> None:

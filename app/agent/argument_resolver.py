@@ -93,12 +93,17 @@ def resolve_arguments(
             "paper_id": paper_id,
             "chunk_size": int(arguments.get("chunk_size") or 800),
             "chunk_overlap": int(arguments.get("chunk_overlap") or 120),
+            "index_version": arguments.get("index_version") or "hybrid_v2",
+            "chunker_version": arguments.get("chunker_version") or "contextual_v1",
         }
 
     if tool_name in {"rag_search", "rag_answer"}:
         resolved: dict[str, Any] = {
             "query": arguments.get("query") or extract_rag_query(payload.text),
             "top_k": int(arguments.get("top_k") or extract_top_k(payload.text)),
+            "user_id": payload.user_id,
+            "session_id": payload.session_id,
+            "retrieval_mode": arguments.get("retrieval_mode"),
         }
         paper_id = _resolve_optional_paper_id_argument(arguments, payload=payload, session_repo=session_repo)
         if paper_id is not None:
