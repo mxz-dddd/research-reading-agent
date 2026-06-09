@@ -355,6 +355,39 @@ cp eval/golden_queries.example.jsonl eval/golden_queries.local.jsonl
 - 不替代人工评估。
 - 这是后续更换 embedding、Qdrant、reranker 前的基线机制。
 
+### RAG v2 Evaluation Dashboard / 评估看板
+
+前端新增入口：`RAG v2 评估看板`。
+
+数据来源：
+
+```text
+eval/rag_eval_runs/*.json
+```
+
+后端只读 API：
+
+```text
+GET /api/rag/eval-runs
+GET /api/rag/eval-runs/{run_id}
+```
+
+页面展示内容：
+
+- eval run 列表。
+- summary 指标。
+- `by_retrieval_mode` 分组指标。
+- results 明细。
+- raw JSON。
+
+当前边界：
+
+- 只读本地评估结果。
+- 不自动运行 eval。
+- 不调用外部 API。
+- 不替代人工评估。
+- 后续可扩展为对比 hash embedding、sentence-transformers、Qdrant、reranker 的 dashboard。
+
 ## 尚未实现
 
 - 真实 sentence-transformers embedding。

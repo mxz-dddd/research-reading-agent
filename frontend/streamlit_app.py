@@ -16,6 +16,7 @@ PAGE_WORKFLOW_HISTORY = "研究流程历史"
 PAGE_WORKFLOW_REPORT = "研究报告"
 PAGE_RAG_QA = "论文查询与复盘"
 PAGE_RAG_V2_DEBUGGER = "RAG v2 调试台"
+PAGE_RAG_V2_EVAL_DASHBOARD = "RAG v2 评估看板"
 PAGE_RAG_EVALUATION = "检索质量评估"
 
 
@@ -802,6 +803,162 @@ def rag_evaluation_page() -> None:
             render_json_section("原始响应 JSON", payload)
 
 
+def _render_eval_summary(summary: dict) -> None:
+    st.subheader("Summary 指标")
+    cols = st.columns(6)
+    cols[0].metric("total", metric_value(summary.get("total")))
+    cols[1].metric("error_count", metric_value(summary.get("error_count")))
+    cols[2].metric("terms recall", metric_value(summary.get("avg_recall_expected_terms")))
+    cols[3].metric("chunk recall", metric_value(summary.get("avg_recall_expected_chunk_ids")))
+    cols[4].metric("paper recall", metric_value(summary.get("avg_recall_expected_paper_ids")))
+    cols[5].metric("answer hit", metric_value(summary.get("answer_contains_any_rate")))
+
+
+def _render_eval_mode_table(summary: dict) -> None:
+    st.subheader("by_retrieval_mode")
+    by_mode = summary.get("by_retrieval_mode") or {}
+    if not isinstance(by_mode, dict) or not by_mode:
+        st.info("暂无分组指标。")
+        return
+    rows = [{"retrieval_mode": mode, **metrics} for mode, metrics in by_mode.items() if isinstance(metrics, dict)]
+    st.dataframe(rows, use_container_width=True)
+
+
+def _render_eval_results_table(results: list[dict]) -> None:
+    st.subheader("Results 明细")
+    if not results:
+        st.info("暂无 results 明细。")
+        return
+
+    modes = sorted({str(item.get("retrieval_mode")) for item in results if item.get("retrieval_mode")})
+    selected_modes = st.multiselect("retrieval_mode 过滤", options=modes, default=modes)
+    only_errors = st.checkbox("只看错误", value=False)
+    keyword = st.text_input("query_id / query 关键词", value="")
+
+    filtered = []
+    for item in results:
+        if selected_modes and item.get("retrieval_mode") not in selected_modes:
+            continue
+        if only_errors and not item.get("error"):
+            continue
+        if keyword.strip():
+            haystack = f"{item.get('query_id') or ''} {item.get('query') or ''}".lower()
+            if keyword.strip().lower() not in haystack:
+                continue
+        filtered.append(item)
+
+    rows = [
+        {
+            "query_id": item.get("query_id"),
+            "query": item.get("query"),
+            "retrieval_mode": item.get("retrieval_mode"),
+            "top_k": item.get("top_k"),
+            "evidence_count": item.get("evidence_count"),
+            "recall_expected_terms": item.get("recall_expected_terms"),
+            "recall_expected_chunk_ids": item.get("recall_expected_chunk_ids"),
+            "recall_expected_paper_ids": item.get("recall_expected_paper_ids"),
+            "answer_contains_any": item.get("answer_contains_any"),
+            "context_pack_id": item.get("context_pack_id"),
+            "error": item.get("error"),
+        }
+        for item in filtered
+    ]
+    st.dataframe(rows, use_container_width=True)
+
+    with st.expander("Result 详情", expanded=False):
+        for index, item in enumerate(filtered, start=1):
+            with st.expander(
+                f"{index}. {item.get('query_id') or '-'} | {item.get('retrieval_mode') or '-'}",
+                expanded=False,
+            ):
+                st.json(
+                    {
+                        "matched_expected_terms": item.get("matched_expected_terms"),
+                        "missing_expected_terms": item.get("missing_expected_terms"),
+                        "matched_expected_chunk_ids": item.get("matched_expected_chunk_ids"),
+                        "missing_expected_chunk_ids": item.get("missing_expected_chunk_ids"),
+                        "pipeline": item.get("pipeline"),
+                        "error": item.get("error"),
+                    }
+                )
+
+
+def render_rag_v2_eval_dashboard() -> None:
+    st.header("RAG v2 评估看板")
+    st.info("用于查看 golden queries 评估结果，比较不同 retrieval_mode 的检索效果，为后续替换 embedding、Qdrant 或 reranker 提供基线。")
+
+    limit = st.number_input("limit（评估运行数量）", min_value=1, max_value=100, value=20, step=1)
+    if st.button("刷新评估结果列表", type="primary"):
+        ok, data, error = safe_api_get("/api/rag/eval-runs", params={"limit": int(limit)})
+        if ok and data is not None:
+            st.session_state["rag_v2_eval_runs"] = data
+        else:
+            st.error(error or "评估结果列表加载失败。")
+
+    runs_payload = st.session_state.get("rag_v2_eval_runs")
+    if not isinstance(runs_payload, dict):
+        ok, data, error = safe_api_get("/api/rag/eval-runs", params={"limit": int(limit)})
+        if ok and data is not None:
+            runs_payload = data
+            st.session_state["rag_v2_eval_runs"] = data
+        else:
+            st.error(error or "评估结果列表加载失败。")
+            return
+
+    runs = runs_payload.get("items") or []
+    if not runs:
+        st.info("暂无评估结果。请先运行 scripts/eval_rag_v2.py 生成 eval/rag_eval_runs/*.json。")
+        st.code(
+            ".venv/bin/python scripts/eval_rag_v2.py \\\n"
+            "  --base-url http://127.0.0.1:8000 \\\n"
+            "  --golden-file eval/golden_queries.example.jsonl \\\n"
+            "  --retrieval-modes hybrid,keyword \\\n"
+            "  --top-k 5 \\\n"
+            "  --run-answer",
+            language="bash",
+        )
+        return
+
+    st.subheader("Eval Run 列表")
+    st.dataframe(
+        [
+            {
+                "run_id": item.get("run_id"),
+                "created_at": item.get("created_at"),
+                "retrieval_modes": ", ".join(item.get("retrieval_modes") or []),
+                "top_k": item.get("top_k"),
+                "run_answer": item.get("run_answer"),
+                "total": item.get("total"),
+                "error_count": item.get("error_count"),
+                "avg_recall_expected_terms": item.get("avg_recall_expected_terms"),
+                "avg_recall_expected_chunk_ids": item.get("avg_recall_expected_chunk_ids"),
+                "avg_recall_expected_paper_ids": item.get("avg_recall_expected_paper_ids"),
+                "answer_contains_any_rate": item.get("answer_contains_any_rate"),
+            }
+            for item in runs
+        ],
+        use_container_width=True,
+    )
+
+    run_ids = [item.get("run_id") for item in runs if item.get("run_id")]
+    selected_run_id = st.selectbox("选择 run_id", options=run_ids)
+    if st.button("加载评估详情", disabled=not selected_run_id):
+        ok, data, error = safe_api_get(f"/api/rag/eval-runs/{selected_run_id}")
+        if ok and data is not None:
+            st.session_state["rag_v2_eval_run_detail"] = data
+        else:
+            st.error(error or "评估详情加载失败。")
+
+    detail = st.session_state.get("rag_v2_eval_run_detail")
+    if not isinstance(detail, dict):
+        return
+
+    _render_eval_summary(detail.get("summary") or {})
+    _render_eval_mode_table(detail.get("summary") or {})
+    _render_eval_results_table(detail.get("results") or [])
+    render_json_section("查看原始评估 JSON", detail)
+
+
 def main() -> None:
     init_session_state()
     st.title("科研阅读智能体工作台")
@@ -831,6 +988,7 @@ def main() -> None:
                 PAGE_WORKFLOW_REPORT,
                 PAGE_RAG_QA,
                 PAGE_RAG_V2_DEBUGGER,
+                PAGE_RAG_V2_EVAL_DASHBOARD,
                 PAGE_RAG_EVALUATION,
             ],
         )
@@ -860,6 +1018,8 @@ def main() -> None:
         rag_qa_page()
     elif page == PAGE_RAG_V2_DEBUGGER:
         render_rag_v2_debugger()
+    elif page == PAGE_RAG_V2_EVAL_DASHBOARD:
+        render_rag_v2_eval_dashboard()
     elif page == PAGE_RAG_EVALUATION:
         rag_evaluation_page()
 
