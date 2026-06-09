@@ -1,8 +1,10 @@
-# RAG v2 与 Context Pack
+# PaperWeave 论文证据织网方法
 
-本文说明当前本地 RAG v2 的第一阶段实现。它仍然是轻量本地方案，不依赖外部 API，不要求 OpenAI Key，也没有引入 Qdrant。
+PaperWeave 是本项目中的论文证据织网方法，用于把论文切片、关键词线索、轻量语义线索、证据包、调试信息和标准问题评估组织成一条可追踪的阅读证据链。现阶段它仍保持本地轻量实现，便于稳定测试和后续逐步替换检索组件。
 
-## RAG v2 Pipeline
+旧文档文件名中仍包含 `rag_v2`，这是历史路径，为避免破坏链接暂不改名。对外名称统一使用 PaperWeave。现有 API 路径暂保持 `/api/rag/...`，用于兼容已有接口；后续可以再增加 `/api/paperweave/...` alias，但本轮不做。
+
+## PaperWeave 检索链路
 
 `POST /api/rag/index` 会把论文文本切成 contextual chunks。每个 chunk 会保存：
 
@@ -19,11 +21,11 @@
 4. deterministic rerank：综合 fused score、query token overlap、phrase match、section/header 命中。
 5. trace metadata：记录 `retrieval_mode`、`pipeline`、`context_pack_id`。
 
-keyword 模式仍然保留。请求中传 `retrieval_mode="keyword"` 即可走 RAG v1 fallback。
+keyword 模式仍然保留。请求中传 `retrieval_mode="keyword"` 即可走关键词 fallback。
 
-## Context Pack
+## Evidence Pack（证据包）
 
-每次 search / answer 会生成一条 Context Pack，保存到 SQLite `context_packs` 表。结构包括：
+每次 search / answer 会生成一条 Evidence Pack（证据包，内部仍复用 `context_pack` 字段），保存到 SQLite `context_packs` 表。结构包括：
 
 ```json
 {
@@ -77,7 +79,7 @@ RAG_EMBEDDING_DIM=256
 RAG_RRF_K=60
 RAG_RERANK_ENABLED=true
 
-# Context Pack 粗略 token 预算
+# Evidence Pack 粗略 token 预算
 RAG_CONTEXT_TOKEN_BUDGET=6000
 ```
 
@@ -126,21 +128,21 @@ curl -X POST http://127.0.0.1:8000/api/rag/answer \
   }'
 ```
 
-## RAG v2 Debugger / 可观测性
+## PaperWeave 调试台 / 可观测性
 
-### 前端 RAG v2 调试台
+### 前端 PaperWeave 调试台
 
-Streamlit 前端新增入口：`RAG v2 调试台`。这个页面用于调试 contextual hybrid RAG 的 evidence、Context Pack 和 pipeline，不改变后端检索算法本身。
+Streamlit 前端新增入口：`PaperWeave 调试台`。这个页面用于调试 PaperWeave 的 evidence、Evidence Pack（证据包）和 pipeline，不改变后端检索算法本身。
 
 页面支持：
 
-- 运行 RAG Search。
-- 运行 RAG Answer。
+- 运行检索 Search。
+- 运行证据回答 Answer。
 - 选择 `retrieval_mode`：`hybrid` / `keyword`。
 - 指定 `user_id`、`session_id`、`paper_id`、`top_k`、`query`。
 - 查看回答结果。
 - 查看 Evidence Debugger。
-- 查看 Context Pack Viewer。
+- 查看 Evidence Pack Viewer。
 - 查看 Pipeline Viewer。
 - 查看 raw response JSON。
 
@@ -164,14 +166,14 @@ Evidence Debugger 会把返回的 evidence 整理成表格，并保留每条 evi
 
 它主要用于判断 sparse、dense、RRF、rerank 哪一阶段影响了最终 evidence，也可以排查检索命中是否来自正文、`section_title`、`contextual_header` 或 token overlap。
 
-### Context Pack Viewer
+### Evidence Pack Viewer
 
-Context Pack Viewer 展示一次 search / answer 构造出的上下文摘要，包括：
+Evidence Pack Viewer 展示一次 search / answer 构造出的上下文摘要，包括：
 
 - `context_pack_id`
 - `estimated_tokens` / `token_budget` / `item_count`
 - 按 `item_type` 分组查看 items
-- 根据 `context_pack_id` 加载历史 Context Pack
+- 根据 `context_pack_id` 加载历史 Evidence Pack
 - raw JSON，用于复现某次回答上下文
 
 `item_type` 可能包括：
@@ -196,17 +198,17 @@ Pipeline Viewer 展示当前 response 中的 pipeline 字段，主要包括：
 
 它用于快速确认当前回答实际走的是 `keyword` 还是 `hybrid`，也用于确认 candidate 数量、RRF、rerank 和 embedding provider 配置。
 
-### Context Pack 查询 API
+### Evidence Pack 查询 API
 
-读取单个 Context Pack：
+读取单个 Evidence Pack：
 
 ```text
 GET /api/rag/context-packs/{context_pack_id}
 ```
 
-返回单个 Context Pack。不存在时返回 404，`detail` 包含 `context_pack_id not found`。
+返回单个 Evidence Pack。不存在时返回 404，`detail` 包含 `context_pack_id not found`。
 
-查看指定用户和会话最近生成的 Context Packs：
+查看指定用户和会话最近生成的 Evidence Packs：
 
 ```text
 GET /api/rag/context-packs?user_id=default&session_id=default&limit=10
@@ -221,9 +223,9 @@ GET /api/rag/context-packs?user_id=default&session_id=default&limit=10
 }
 ```
 
-`limit` 范围是 1 到 50。这个接口主要用于调试最近生成的 Context Packs。
+`limit` 范围是 1 到 50。这个接口主要用于调试最近生成的 Evidence Packs。
 
-### API smoke test 脚本
+### PaperWeave smoke 验收脚本
 
 本地 smoke 脚本路径：
 
@@ -267,11 +269,11 @@ scripts/smoke_rag_v2.py
 - 当前没有实现 GraphRAG。
 - 尚未接入 Qdrant，尚未接入 sentence-transformers，尚未实现 GraphRAG。
 - 当前 hash embedding 是为了本地可测、可回归、无外部依赖。
-- 当前 Debugger 是可观测性工具，不改变 RAG 检索算法本身。
+- 当前调试台是可观测性工具，不改变 PaperWeave 检索算法本身。
 
-## RAG v2 Golden Queries / 质量评估
+## PaperWeave 标准问题集 / 质量评估
 
-Golden queries 是一组本地 JSONL 测试问题，用来比较 `hybrid` / `keyword` 等 `retrieval_mode` 的检索质量，并为后续替换 embedding、Qdrant、reranker 前建立可回归基线。
+PaperWeave 标准问题集是一组本地 JSONL 测试问题，用来比较 `hybrid` / `keyword` 等 `retrieval_mode` 的检索质量，并为后续替换 embedding、Qdrant、reranker 前建立可回归基线。
 
 示例文件：
 
@@ -355,9 +357,9 @@ cp eval/golden_queries.example.jsonl eval/golden_queries.local.jsonl
 - 不替代人工评估。
 - 这是后续更换 embedding、Qdrant、reranker 前的基线机制。
 
-### RAG v2 Evaluation Dashboard / 评估看板
+### PaperWeave Evaluation Dashboard / 评估看板
 
-前端新增入口：`RAG v2 评估看板`。
+前端新增入口：`PaperWeave 评估看板`。
 
 数据来源：
 
