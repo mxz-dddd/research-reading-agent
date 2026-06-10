@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 
 from app.services.tool_mux import ToolMux, ToolRegistry

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from fastapi import APIRouter, HTTPException, Query
 
 from app.repositories.context_repo import ContextPackRepository

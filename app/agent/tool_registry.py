@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any, Callable
 
 from app.repositories.session_repo import SessionStateRepository

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from app.repositories.topic_repo import TopicRepository
 from app.schemas.topic import TopicCreate, TopicRead
 

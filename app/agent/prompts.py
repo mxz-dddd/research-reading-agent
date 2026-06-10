@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 AGENT_ROUTER_PROMPT = """
 你是科研论文助手的工具路由器。请根据用户中文或英文请求选择一个工具。
 

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from fastapi import APIRouter
 
 from app.schemas.knowledge import KnowledgeArtifactRead, KnowledgeGenerateRequest
