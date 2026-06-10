@@ -15,8 +15,8 @@ PAGE_RUN_WORKFLOW = "运行研究流程"
 PAGE_WORKFLOW_HISTORY = "研究流程历史"
 PAGE_WORKFLOW_REPORT = "研究报告"
 PAGE_RAG_QA = "论文查询与复盘"
-PAGE_RAG_V2_DEBUGGER = "RAG v2 调试台"
-PAGE_RAG_V2_EVAL_DASHBOARD = "RAG v2 评估看板"
+PAGE_RAG_V2_DEBUGGER = "PaperWeave 调试台"
+PAGE_RAG_V2_EVAL_DASHBOARD = "PaperWeave 评估看板"
 PAGE_RAG_EVALUATION = "检索质量评估"
 
 
@@ -286,7 +286,7 @@ def _count_context_item_types(items: list) -> dict:
     return counts
 
 
-def _render_single_context_pack(context_pack: dict, title: str = "Context Pack") -> None:
+def _render_single_context_pack(context_pack: dict, title: str = "Evidence Pack（证据包）") -> None:
     st.markdown(f"### {title}")
     items = context_pack.get("items") or []
     item_count = context_pack.get("item_count")
@@ -322,32 +322,32 @@ def _render_single_context_pack(context_pack: dict, title: str = "Context Pack")
 
 
 def _render_context_pack_viewer(response: dict) -> None:
-    st.subheader("Context Pack Viewer")
+    st.subheader("Evidence Pack Viewer")
     has_context_pack = False
     context_pack = response.get("context_pack")
     context_pack_id = response.get("context_pack_id")
 
     if isinstance(context_pack, dict):
-        _render_single_context_pack(context_pack, "当前响应中的 Context Pack")
+        _render_single_context_pack(context_pack, "当前响应中的 Evidence Pack（证据包）")
         has_context_pack = True
     elif context_pack_id:
         st.info(f"当前响应包含 context_pack_id：{context_pack_id}。可在下方手动加载。")
 
     manual_context_pack_id = st.text_input("context_pack_id", value=str(context_pack_id or ""), key="rag_v2_context_pack_id")
-    if st.button("加载 Context Pack", disabled=not manual_context_pack_id.strip()):
+    if st.button("加载 Evidence Pack", disabled=not manual_context_pack_id.strip()):
         ok, data, error = safe_api_get(f"/api/rag/context-packs/{manual_context_pack_id.strip()}")
         if ok and data:
             st.session_state["rag_v2_loaded_context_pack"] = data
         else:
-            st.error(error or "Context Pack 加载失败。")
+            st.error(error or "Evidence Pack 加载失败。")
 
     loaded_context_pack = st.session_state.get("rag_v2_loaded_context_pack")
     if isinstance(loaded_context_pack, dict):
-        _render_single_context_pack(loaded_context_pack, "手动加载的 Context Pack")
+        _render_single_context_pack(loaded_context_pack, "手动加载的 Evidence Pack（证据包）")
         has_context_pack = True
 
     if not has_context_pack and not context_pack_id:
-        st.info("暂无 Context Pack。")
+        st.info("暂无 Evidence Pack。")
 
 
 def _render_pipeline_viewer(response: dict) -> None:
@@ -686,8 +686,11 @@ def rag_qa_page() -> None:
 
 
 def render_rag_v2_debugger() -> None:
-    st.header("RAG v2 调试台")
-    st.info("用于查看 contextual hybrid RAG 的 evidence、Context Pack 和 pipeline，便于调试检索结果。")
+    st.header("PaperWeave 调试台")
+    st.info(
+        "PaperWeave 用于查看论文证据检索链路、证据包和标准问题评估结果，帮助比较不同 "
+        "retrieval_mode 的效果，并为后续替换 embedding provider、向量库或 reranker 提供基线。"
+    )
 
     st.subheader("查询控制区")
     col1, col2 = st.columns(2)
@@ -712,26 +715,26 @@ def render_rag_v2_debugger() -> None:
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("运行 RAG Search", type="primary"):
+        if st.button("运行 PaperWeave Search", type="primary"):
             ok, data, error = safe_api_post("/api/rag/search", payload)
             if ok and data:
                 st.session_state["rag_v2_debug_response"] = data
                 save_trace_id(data)
             else:
-                st.error(error or "RAG Search 请求失败。")
+                st.error(error or "PaperWeave Search 请求失败。")
 
     with col2:
-        if st.button("运行 RAG Answer"):
+        if st.button("运行 PaperWeave Answer"):
             ok, data, error = safe_api_post("/api/rag/answer", payload)
             if ok and data:
                 st.session_state["rag_v2_debug_response"] = data
                 save_trace_id(data)
             else:
-                st.error(error or "RAG Answer 请求失败。")
+                st.error(error or "PaperWeave Answer 请求失败。")
 
     response = st.session_state.get("rag_v2_debug_response")
     if not isinstance(response, dict):
-        st.info("请先运行 RAG Search 或 RAG Answer。")
+        st.info("请先运行 PaperWeave Search 或 PaperWeave Answer。")
         return
 
     answer = response.get("answer") or response.get("final_answer")
@@ -884,8 +887,11 @@ def _render_eval_results_table(results: list[dict]) -> None:
 
 
 def render_rag_v2_eval_dashboard() -> None:
-    st.header("RAG v2 评估看板")
-    st.info("用于查看 golden queries 评估结果，比较不同 retrieval_mode 的检索效果，为后续替换 embedding、Qdrant 或 reranker 提供基线。")
+    st.header("PaperWeave 评估看板")
+    st.info(
+        "PaperWeave 用于查看论文证据检索链路、证据包和标准问题评估结果，帮助比较不同 "
+        "retrieval_mode 的效果，并为后续替换 embedding provider、向量库或 reranker 提供基线。"
+    )
 
     limit = st.number_input("limit（评估运行数量）", min_value=1, max_value=100, value=20, step=1)
     if st.button("刷新评估结果列表", type="primary"):
@@ -907,7 +913,7 @@ def render_rag_v2_eval_dashboard() -> None:
 
     runs = runs_payload.get("items") or []
     if not runs:
-        st.info("暂无评估结果。请先运行 scripts/eval_rag_v2.py 生成 eval/rag_eval_runs/*.json。")
+        st.info("暂无 PaperWeave 评估结果。请先运行评估脚本生成 eval/rag_eval_runs/*.json。")
         st.code(
             ".venv/bin/python scripts/eval_rag_v2.py \\\n"
             "  --base-url http://127.0.0.1:8000 \\\n"

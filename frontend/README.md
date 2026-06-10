@@ -117,7 +117,7 @@ uvicorn app.main:app --reload
 ## 8. 重要边界
 
 - `dry_run=true` 是演示模式。它使用模拟数据展示流程结构，不代表真实论文检索或真实研究结论。
-- RAG 是支撑科研阅读的本地检索能力：keyword 模式保留 RAG v1 的 keyword/token overlap 检索，hybrid 模式提供 RAG v2 的本地 hash dense retrieval、sparse retrieval、RRF fusion 和轻量 rerank；当前不是 Qdrant，也没有接真实外部 embedding 或外部 reranker。
+- PaperWeave 是支撑科研阅读的论文证据织网方法：keyword 模式使用 keyword/token overlap 检索，hybrid 模式提供本地 hash dense retrieval、sparse retrieval、RRF fusion 和轻量 rerank；当前不是 Qdrant，也没有接真实外部 embedding 或外部 reranker。
 - 飞书是后续扩展方向，不是当前前端主线。
 - 当前 Streamlit 只是产品原型，不是最终生产级前端。
 - 前端只调用已有 FastAPI API，不修改 schemas、数据库或业务逻辑。

@@ -173,22 +173,22 @@ AgentService 已做低风险接入：
 .venv/bin/python scripts/demo_research_tool_mux.py
 ```
 
-## 7. 本地检索与 RAG v1 / RAG v2
+## 7. PaperWeave 论文证据织网
 
-RAG 是这个工作台里的支撑模块。它的作用是让已经 ingest 的论文文本可以被再次查询，并记录每次查询命中了哪些证据片段。当前实现包含两种本地轻量模式：
+PaperWeave 是这个工作台里的论文证据织网方法。它的作用是让已经 ingest 的论文文本可以被再次查询，并记录每次查询命中了哪些证据片段。当前实现包含两种本地轻量模式：
 
 - 使用 SQLite 保存 `rag_chunks`。
-- keyword 模式保留 RAG v1：使用 keyword / token overlap 做检索。
-- hybrid 模式提供 RAG v2：使用 contextual chunk、hash embedding dense retrieval、sparse retrieval、RRF fusion 和 deterministic rerank。
+- keyword 模式使用 keyword / token overlap 做检索。
+- hybrid 模式提供 PaperWeave 检索引擎：使用 contextual chunk、hash embedding dense retrieval、sparse retrieval、RRF fusion 和 deterministic rerank。
 - 返回 evidence chunks、`matched_terms` 和 `score_reason`。
 - 没有证据时不编造答案。
 - 每次 RAG search / answer 可以保存 trace。
-- 每次 search / answer 会构造 Context Pack，记录 session recent search、active paper 和 RAG evidence 上下文。
+- 每次 search / answer 会构造 Evidence Pack（证据包，内部仍复用 `context_pack` 字段），记录 session recent search、active paper 和 evidence 上下文。
 - trace metadata 会记录 `retrieval_mode`、`pipeline` 和 `context_pack_id`，便于复盘一次检索实际走过的链路。
 - 支持 trace-level feedback 和 evidence-level feedback。
 - 可以计算 Recall@K、MRR、nDCG@5 等轻量指标。
 
-RAG v2 是本地轻量 hybrid RAG，不依赖外部 API，不引入 Qdrant，也不是生产级向量库。当前 dense retrieval 使用纯 Python hash embedding，它只是为了本地 deterministic dense retrieval 提供轻量实现；尚未接入 sentence-transformers、Qdrant、外部 reranker 或 GraphRAG。
+当前 PaperWeave 仍使用本地轻量 hybrid retrieval，不依赖外部 API，不引入 Qdrant，也不是生产级向量库。当前 dense retrieval 使用纯 Python hash embedding，它只是为了本地 deterministic dense retrieval 提供轻量实现；尚未接入 sentence-transformers、Qdrant、外部 reranker 或 GraphRAG。
 
 明确边界：尚未接入 Qdrant，尚未接入 sentence-transformers，尚未实现 GraphRAG，外部 reranker 也尚未接入。
 
@@ -196,9 +196,9 @@ RAG answer 只基于已索引的文本片段做保守回答，不等价于通读
 
 新增可观测性能力：
 
-- 前端新增“RAG v2 调试台”，这是科研阅读工作台中的调试能力，不是把项目改成独立检索演示项目。
+- 前端新增“PaperWeave 调试台”，这是科研阅读工作台中的调试能力，不是把项目改成独立检索演示项目。
 - Evidence Debugger：查看 evidence 表格、分数、正文预览和 raw JSON。
-- Context Pack Viewer：查看当前响应中的 Context Pack，或根据指定 `context_pack_id` 加载历史 Context Pack。
+- Evidence Pack Viewer：查看当前响应中的 Evidence Pack（证据包），或根据指定 `context_pack_id` 加载历史证据包。
 - Pipeline Viewer：查看 `retrieval_mode`、candidate 数量、RRF、rerank 和 embedding provider 等 pipeline 信息。
 - Raw response JSON：保留完整响应，方便调试检索链路。
 
@@ -216,9 +216,9 @@ GET  /api/rag/evaluation/summary
 GET  /api/rag/evaluation/evidence-summary
 ```
 
-`GET /api/rag/context-packs/{context_pack_id}` 用于读取单个 Context Pack；`GET /api/rag/context-packs?user_id=default&session_id=default&limit=10` 用于查看指定 `user_id` / `session_id` 最近生成的 Context Packs，`limit` 目前限制为 1 到 50。
+现有 API 路径暂保持 `/api/rag/...`，用于兼容已有接口。`GET /api/rag/context-packs/{context_pack_id}` 用于读取单个 Evidence Pack（证据包）；`GET /api/rag/context-packs?user_id=default&session_id=default&limit=10` 用于查看指定 `user_id` / `session_id` 最近生成的证据包，`limit` 目前限制为 1 到 50。
 
-后端服务启动后，可以用本地 smoke 脚本手动验证 RAG v2 API 链路：
+后端服务启动后，可以用本地 smoke 脚本手动验证 PaperWeave 检索链路：
 
 ```bash
 .venv/bin/python scripts/smoke_rag_v2.py \
@@ -230,7 +230,7 @@ GET  /api/rag/evaluation/evidence-summary
 
 脚本会依次检查 `/health`、可选 `/api/rag/index`、`/api/rag/search`、`/api/rag/answer`，并在返回 `context_pack_id` 时读取 `/api/rag/context-packs/{context_pack_id}`。
 
-新增 RAG v2 golden queries 质量评估脚本，用于在替换 embedding、向量库或 reranker 前形成本地可回归的检索质量基线。示例文件位于 `eval/golden_queries.example.jsonl`；本地私有评估集建议复制为 `eval/golden_queries.local.jsonl`，该文件已被 git ignore。
+新增 PaperWeave 标准问题集质量评估脚本，用于在替换 embedding、向量库或 reranker 前形成本地可回归的检索质量基线。示例文件位于 `eval/golden_queries.example.jsonl`；本地私有评估集建议复制为 `eval/golden_queries.local.jsonl`，该文件已被 git ignore。
 
 只评估 search：
 
@@ -255,7 +255,7 @@ GET  /api/rag/evaluation/evidence-summary
 
 当前指标是轻量规则评估，不是 LLM-as-judge；适合做本地回归和版本对比。后续可以扩展为 RAGAS、人工标注集或更严格的 citation faithfulness 检查。
 
-前端新增“RAG v2 评估看板”，用于查看 `eval/rag_eval_runs/*.json` 的 summary、`by_retrieval_mode` 和 results 明细，方便比较 `hybrid` / `keyword` 的本地评估结果。`eval/rag_eval_runs/` 仍然是 ignored，不进入 Git。这个看板只读取本地评估结果，不自动运行评估，也不调用外部 API；当前评估仍是轻量规则评估，不是 LLM-as-judge。
+前端新增“PaperWeave 评估看板”，用于查看 `eval/rag_eval_runs/*.json` 的 summary、`by_retrieval_mode` 和 results 明细，方便比较 `hybrid` / `keyword` 的本地评估结果。`eval/rag_eval_runs/` 仍然是 ignored，不进入 Git。这个看板只读取本地评估结果，不自动运行评估，也不调用外部 API；当前评估仍是轻量规则评估，不是 LLM-as-judge。
 
 详细说明见 [docs/rag_v2_context_pack.md](docs/rag_v2_context_pack.md)。
 
@@ -269,8 +269,8 @@ Streamlit 前端位于 `frontend/streamlit_app.py`，页面为中文：
 - 研究流程历史
 - 研究报告
 - 论文查询与复盘
-- RAG v2 调试台
-- RAG v2 评估看板
+- PaperWeave 调试台
+- PaperWeave 评估看板
 - 检索质量评估
 
 这是一个产品原型，用来把后端能力组织成可操作页面。它不是最终生产级前端。
@@ -379,8 +379,8 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -p no:cacheprovider tests
 
 这个项目仍然是本地原型，有几个边界需要明确：
 
-- RAG v1 keyword 模式仍是本地关键词 / token overlap 检索。
-- RAG v2 hybrid 模式是本地轻量 hybrid retrieval，不是 Qdrant / 生产级向量库。
+- keyword 模式仍是本地关键词 / token overlap 检索。
+- PaperWeave hybrid 模式是本地轻量 hybrid retrieval，不是 Qdrant / 生产级向量库。
 - 当前没有接入真实 sentence-transformers、Qdrant 或外部 reranker。
 - `dry_run` 是模拟流程，不代表真实论文检索结果。
 - SQLite 适合本地原型，不是生产数据库。
@@ -410,7 +410,7 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -p no:cacheprovider tests
 - 系统架构说明：[docs/agent_architecture.md](docs/agent_architecture.md)
 - 核心 API 清单：[docs/core_api_checklist.md](docs/core_api_checklist.md)
 - 本地 RAG v1 能力边界：[docs/rag_v1_quality_boundary.md](docs/rag_v1_quality_boundary.md)
-- RAG v2 与 Context Pack：[docs/rag_v2_context_pack.md](docs/rag_v2_context_pack.md)
+- PaperWeave 论文证据织网方法：[docs/rag_v2_context_pack.md](docs/rag_v2_context_pack.md)
 - 发布前检查清单：[docs/project_freeze_checklist.md](docs/project_freeze_checklist.md)
 - Streamlit 前端说明：[frontend/README.md](frontend/README.md)
 - 本地 curl 演示脚本：[scripts/demo_curl_examples.sh](scripts/demo_curl_examples.sh)
