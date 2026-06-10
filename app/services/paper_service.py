@@ -74,7 +74,7 @@ class PaperService:
         return papers
 
     def list_papers(self, status: str | None = None) -> list[PaperRead]:
-        return self.paper_repo.list(status=status)
+        return self.paper_repo.list_all(status=status)
 
     def list_search_history(self) -> list[PaperSearchHistoryRead]:
         return self.paper_repo.list_search_history()

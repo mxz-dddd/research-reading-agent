@@ -83,7 +83,7 @@ class WorkflowRunRepository:
             return None
         return _row_to_detail(row)
 
-    def list(self, limit: int = 10) -> list[WorkflowRunSummary]:
+    def list_all(self, limit: int = 10) -> list[WorkflowRunSummary]:
         safe_limit = max(1, min(limit, 100))
         with get_connection() as conn:
             rows = conn.execute(

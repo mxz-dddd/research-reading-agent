@@ -24,7 +24,6 @@ select = [
     "SIM",  # simplify
 ]
 ignore = [
-    "A003",  # repository 方法名 list 为既有公共 API，暂不更名
     "E501",  # 行宽由人工控制（中文注释较多）
 ]
 

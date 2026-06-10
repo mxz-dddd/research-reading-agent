@@ -59,7 +59,7 @@ class PaperRepository:
             row = conn.execute("SELECT * FROM papers WHERE id = ?", (cursor.lastrowid,)).fetchone()
         return _row_to_paper(row)
 
-    def list(self, status: str | None = None) -> list[PaperRead]:
+    def list_all(self, status: str | None = None) -> list[PaperRead]:
         with get_connection() as conn:
             if status:
                 rows = conn.execute(

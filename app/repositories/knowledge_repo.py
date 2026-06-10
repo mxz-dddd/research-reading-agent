@@ -57,7 +57,7 @@ class KnowledgeRepository:
             raise NotFoundError("还没有生成过知识树")
         return _row_to_artifact(row)
 
-    def list(self) -> list[KnowledgeArtifactRead]:
+    def list_all(self) -> list[KnowledgeArtifactRead]:
         with get_connection() as conn:
             rows = conn.execute(
                 "SELECT * FROM knowledge_artifacts ORDER BY created_at DESC"

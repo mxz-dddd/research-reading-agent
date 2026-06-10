@@ -15,4 +15,4 @@ class TopicService:
         return self.topic_repo.create(payload)
 
     def list_topics(self) -> list[TopicRead]:
-        return self.topic_repo.list()
+        return self.topic_repo.list_all()

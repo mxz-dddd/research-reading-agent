@@ -69,7 +69,7 @@ class KnowledgeService:
         return self.knowledge_repo.latest()
 
     def history(self) -> list[KnowledgeArtifactRead]:
-        return self.knowledge_repo.list()
+        return self.knowledge_repo.list_all()
 
     def _select_papers(self, topic: str | None) -> list[PaperRead]:
         papers = self.paper_repo.list_accepted()

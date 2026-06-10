@@ -451,7 +451,7 @@ class ResearchWorkflowService:
         return self.workflow_repo.latest()
 
     def list_workflow_history(self, limit: int = 10) -> list[WorkflowRunSummary]:
-        return self.workflow_repo.list(limit=limit)
+        return self.workflow_repo.list_all(limit=limit)
 
     def get_workflow_detail(self, run_id: str) -> WorkflowRunDetail:
         return self.workflow_repo.get_by_run_id(run_id)

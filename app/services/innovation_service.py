@@ -85,7 +85,7 @@ class InnovationService:
         return self.innovation_repo.latest()
 
     def history(self) -> list[InnovationArtifactRead]:
-        return self.innovation_repo.list()
+        return self.innovation_repo.list_all()
 
     def _select_papers(self, topic: str | None) -> list[PaperRead]:
         papers = self.paper_repo.list_accepted()

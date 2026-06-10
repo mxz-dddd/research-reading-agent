@@ -60,7 +60,7 @@ class InnovationRepository:
             raise NotFoundError("还没有生成过创新点分析")
         return _row_to_artifact(row)
 
-    def list(self) -> list[InnovationArtifactRead]:
+    def list_all(self) -> list[InnovationArtifactRead]:
         with get_connection() as conn:
             rows = conn.execute(
                 "SELECT * FROM innovation_artifacts ORDER BY created_at DESC"
