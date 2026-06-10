@@ -16,12 +16,41 @@ PaperWeave 是本项目中的论文证据织网方法，用于把论文切片、
 `POST /api/rag/search` 和 `POST /api/rag/answer` 默认使用 hybrid 模式：
 
 1. sparse retrieval：复用原 keyword / token overlap 检索。
-2. dense retrieval：使用纯 Python hash embedding 计算 cosine similarity。
+2. dense retrieval：默认使用纯 Python hash embedding 计算 cosine similarity，也可以配置可选 sentence-transformers provider。
 3. RRF fusion：用 Reciprocal Rank Fusion 合并 sparse / dense 排名。
 4. deterministic rerank：综合 fused score、query token overlap、phrase match、section/header 命中。
 5. trace metadata：记录 `retrieval_mode`、`pipeline`、`context_pack_id`。
 
 keyword 模式仍然保留。请求中传 `retrieval_mode="keyword"` 即可走关键词 fallback。
+
+## Optional sentence-transformers Provider / 可选语义向量模型
+
+PaperWeave 默认 provider 仍是 `hash`，用于本地可测、无外部依赖、稳定回归。可选 provider 为 `sentence-transformers`，用于更真实的 dense retrieval。
+
+安装方式：
+
+```bash
+pip install -r requirements-paperweave-optional.txt
+```
+
+配置项：
+
+```env
+RAG_EMBEDDING_PROVIDER=sentence-transformers
+RAG_SENTENCE_TRANSFORMERS_MODEL=sentence-transformers/all-MiniLM-L6-v2
+RAG_SENTENCE_TRANSFORMERS_DEVICE=auto
+RAG_EMBEDDING_BATCH_SIZE=32
+```
+
+Pipeline 中会显示：
+
+- `embedding_provider`
+- `embedding_model`
+- `embedding_dim`
+- `embedding_device`
+- `embedding_batch_size`
+
+建议使用 `scripts/eval_rag_v2.py` 和 PaperWeave 评估看板比较不同 provider。当前边界保持不变：不接 Qdrant，不接 GraphRAG，不接外部 reranker；不会自动下载或运行模型，只有配置启用时才加载 sentence-transformers；默认测试环境不要求安装 sentence-transformers。
 
 ## Evidence Pack（证据包）
 
@@ -264,11 +293,10 @@ scripts/smoke_rag_v2.py
 ### 当前边界
 
 - 当前没有接入 Qdrant。
-- 当前没有接入 sentence-transformers。
 - 当前没有接入外部 reranker。
 - 当前没有实现 GraphRAG。
-- 尚未接入 Qdrant，尚未接入 sentence-transformers，尚未实现 GraphRAG。
-- 当前 hash embedding 是为了本地可测、可回归、无外部依赖。
+- 默认 hash embedding 是为了本地可测、可回归、无外部依赖。
+- sentence-transformers 是可选 provider，只有配置启用时才加载。
 - 当前调试台是可观测性工具，不改变 PaperWeave 检索算法本身。
 
 ## PaperWeave 标准问题集 / 质量评估
@@ -392,7 +420,6 @@ GET /api/rag/eval-runs/{run_id}
 
 ## 尚未实现
 
-- 真实 sentence-transformers embedding。
 - Qdrant 或其他生产级向量库。
 - 外部 reranker。
 - GraphRAG。

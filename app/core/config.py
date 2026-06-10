@@ -19,6 +19,12 @@ class Settings:
     rag_retrieval_mode: str = os.getenv("RAG_RETRIEVAL_MODE", "hybrid")
     rag_embedding_provider: str = os.getenv("RAG_EMBEDDING_PROVIDER", "hash")
     rag_embedding_dim: int = int(os.getenv("RAG_EMBEDDING_DIM", "256"))
+    rag_sentence_transformers_model: str = os.getenv(
+        "RAG_SENTENCE_TRANSFORMERS_MODEL",
+        "sentence-transformers/all-MiniLM-L6-v2",
+    )
+    rag_sentence_transformers_device: str = os.getenv("RAG_SENTENCE_TRANSFORMERS_DEVICE", "auto")
+    rag_embedding_batch_size: int = int(os.getenv("RAG_EMBEDDING_BATCH_SIZE", "32"))
     rag_rrf_k: int = int(os.getenv("RAG_RRF_K", "60"))
     rag_rerank_enabled: bool = os.getenv("RAG_RERANK_ENABLED", "true").lower() == "true"
     rag_context_token_budget: int = int(os.getenv("RAG_CONTEXT_TOKEN_BUDGET", "6000"))
