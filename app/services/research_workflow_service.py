@@ -37,20 +37,8 @@ class ResearchWorkflowService:
         self.workflow_repo = workflow_repo if workflow_repo is not None else WorkflowRunRepository()
 
     def run(self, payload: ResearchWorkflowRequest) -> ResearchWorkflowResponse:
-        return self.run_research_workflow(
-            topic=payload.topic,
-            max_results=payload.max_results,
-            accept_top_k=payload.accept_top_k,
-            ingest=payload.ingest,
-            index_rag=payload.index_rag,
-            rag_chunk_size=payload.rag_chunk_size,
-            rag_chunk_overlap=payload.rag_chunk_overlap,
-            generate_knowledge=payload.generate_knowledge,
-            generate_innovation=payload.generate_innovation,
-            dry_run=payload.dry_run,
-            user_id=payload.user_id,
-            session_id=payload.session_id,
-        )
+        # schema 字段与 run_research_workflow 的关键字参数一一对应
+        return self.run_research_workflow(**payload.model_dump())
 
     def run_research_workflow(
         self,
