@@ -15,10 +15,15 @@ from app.schemas.rag import RagSearchChunk
 
 
 class ContextService:
-    def __init__(self) -> None:
-        self.context_repo = ContextPackRepository()
-        self.session_repo = SessionStateRepository()
-        self.paper_repo = PaperRepository()
+    def __init__(
+        self,
+        context_repo: ContextPackRepository | None = None,
+        session_repo: SessionStateRepository | None = None,
+        paper_repo: PaperRepository | None = None,
+    ) -> None:
+        self.context_repo = context_repo if context_repo is not None else ContextPackRepository()
+        self.session_repo = session_repo if session_repo is not None else SessionStateRepository()
+        self.paper_repo = paper_repo if paper_repo is not None else PaperRepository()
 
     def build_context_pack(
         self,

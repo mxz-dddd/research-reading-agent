@@ -22,8 +22,11 @@ logger = logging.getLogger(__name__)
 
 
 class FeishuService:
-    def __init__(self) -> None:
-        self.agent_service = AgentService()
+    def __init__(
+        self,
+        agent_service: AgentService | None = None,
+    ) -> None:
+        self.agent_service = agent_service if agent_service is not None else AgentService()
 
     def handle_webhook(self, raw_body: bytes, headers: dict[str, str]) -> dict[str, Any]:
         payload = self._load_payload(raw_body)

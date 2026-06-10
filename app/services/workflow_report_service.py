@@ -16,8 +16,11 @@ DRY_RUN_REPORT_WARNING = "当前报告基于 dry_run 模式生成，仅用于演
 
 
 class WorkflowReportService:
-    def __init__(self) -> None:
-        self.workflow_repo = WorkflowRunRepository()
+    def __init__(
+        self,
+        workflow_repo: WorkflowRunRepository | None = None,
+    ) -> None:
+        self.workflow_repo = workflow_repo if workflow_repo is not None else WorkflowRunRepository()
         self.report_dir = Path("data/archives/workflow_reports")
 
     def generate_report(self, run_id: str | None = None) -> WorkflowReportResponse:

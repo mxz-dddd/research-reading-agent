@@ -24,10 +24,15 @@ from app.tools.build_tree import CATEGORIES, paper_label, pick_category
 
 
 class KnowledgeService:
-    def __init__(self) -> None:
-        self.paper_repo = PaperRepository()
-        self.knowledge_repo = KnowledgeRepository()
-        self.archive_service = ArchiveService()
+    def __init__(
+        self,
+        paper_repo: PaperRepository | None = None,
+        knowledge_repo: KnowledgeRepository | None = None,
+        archive_service: ArchiveService | None = None,
+    ) -> None:
+        self.paper_repo = paper_repo if paper_repo is not None else PaperRepository()
+        self.knowledge_repo = knowledge_repo if knowledge_repo is not None else KnowledgeRepository()
+        self.archive_service = archive_service if archive_service is not None else ArchiveService()
 
     def generate(self, payload: KnowledgeGenerateRequest) -> KnowledgeArtifactRead:
         papers = self._select_papers(payload.topic)

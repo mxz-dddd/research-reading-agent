@@ -26,9 +26,13 @@ from app.tools.search_papers import search_papers
 
 
 class PaperService:
-    def __init__(self) -> None:
-        self.paper_repo = PaperRepository()
-        self.archive_service = ArchiveService()
+    def __init__(
+        self,
+        paper_repo: PaperRepository | None = None,
+        archive_service: ArchiveService | None = None,
+    ) -> None:
+        self.paper_repo = paper_repo if paper_repo is not None else PaperRepository()
+        self.archive_service = archive_service if archive_service is not None else ArchiveService()
 
     def search_and_store(self, payload: PaperSearchRequest) -> list[PaperRead]:
         topic = payload.search_topic.strip()

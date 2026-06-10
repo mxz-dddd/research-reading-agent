@@ -26,11 +26,17 @@ from app.tools.mine_innovation import build_fallback_innovations
 
 
 class InnovationService:
-    def __init__(self) -> None:
-        self.paper_repo = PaperRepository()
-        self.knowledge_repo = KnowledgeRepository()
-        self.innovation_repo = InnovationRepository()
-        self.archive_service = ArchiveService()
+    def __init__(
+        self,
+        paper_repo: PaperRepository | None = None,
+        knowledge_repo: KnowledgeRepository | None = None,
+        innovation_repo: InnovationRepository | None = None,
+        archive_service: ArchiveService | None = None,
+    ) -> None:
+        self.paper_repo = paper_repo if paper_repo is not None else PaperRepository()
+        self.knowledge_repo = knowledge_repo if knowledge_repo is not None else KnowledgeRepository()
+        self.innovation_repo = innovation_repo if innovation_repo is not None else InnovationRepository()
+        self.archive_service = archive_service if archive_service is not None else ArchiveService()
 
     def generate(self, payload: InnovationGenerateRequest) -> InnovationArtifactRead:
         papers = self._select_papers(payload.topic)

@@ -21,9 +21,13 @@ from app.schemas.agent import AgentQueryRequest, AgentQueryResponse, AgentToolCa
 
 
 class AgentOrchestrator:
-    def __init__(self) -> None:
-        self.registry = ToolRegistry()
-        self.session_repo = SessionStateRepository()
+    def __init__(
+        self,
+        registry: ToolRegistry | None = None,
+        session_repo: SessionStateRepository | None = None,
+    ) -> None:
+        self.registry = registry if registry is not None else ToolRegistry()
+        self.session_repo = session_repo if session_repo is not None else SessionStateRepository()
 
     def query(self, payload: AgentQueryRequest) -> AgentQueryResponse:
         message = payload.text

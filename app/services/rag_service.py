@@ -32,11 +32,17 @@ RAG_V2_WARNING = "RAG v2 使用 contextual chunk、hybrid retrieval、RRF fusion
 
 
 class RagService:
-    def __init__(self) -> None:
-        self.paper_repo = PaperRepository()
-        self.rag_repo = RagChunkRepository()
-        self.trace_repo = RagTraceRepository()
-        self.context_service = ContextService()
+    def __init__(
+        self,
+        paper_repo: PaperRepository | None = None,
+        rag_repo: RagChunkRepository | None = None,
+        trace_repo: RagTraceRepository | None = None,
+        context_service: ContextService | None = None,
+    ) -> None:
+        self.paper_repo = paper_repo if paper_repo is not None else PaperRepository()
+        self.rag_repo = rag_repo if rag_repo is not None else RagChunkRepository()
+        self.trace_repo = trace_repo if trace_repo is not None else RagTraceRepository()
+        self.context_service = context_service if context_service is not None else ContextService()
 
     def index_paper_for_rag(
         self,
