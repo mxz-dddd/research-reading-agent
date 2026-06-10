@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.core.exceptions import AppError, InvalidRequestError, UnauthorizedError
+
 import base64
 import hashlib
 import hmac
@@ -11,7 +13,6 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 import certifi
-from fastapi import HTTPException
 
 from app.core.config import settings
 from app.schemas.agent import AgentQueryRequest
@@ -77,11 +78,11 @@ class FeishuService:
         try:
             payload = json.loads(raw_body.decode("utf-8"))
         except json.JSONDecodeError as exc:
-            raise HTTPException(status_code=400, detail=f"飞书请求体不是合法 JSON：{exc}") from exc
+            raise InvalidRequestError(f"飞书请求体不是合法 JSON：{exc}") from exc
 
         if "encrypt" in payload:
             # TODO: 后续支持飞书加密事件解密。当前建议事件订阅先使用明文推送。
-            raise HTTPException(status_code=400, detail="当前暂不支持飞书加密事件，请先关闭事件加密。")
+            raise InvalidRequestError("当前暂不支持飞书加密事件，请先关闭事件加密。")
         return payload
 
     def _is_challenge(self, payload: dict[str, Any]) -> bool:
@@ -95,25 +96,25 @@ class FeishuService:
 
         token = payload.get("token") or payload.get("header", {}).get("token")
         if token != expected:
-            raise HTTPException(status_code=401, detail="飞书 verification token 校验失败")
+            raise UnauthorizedError("飞书 verification token 校验失败")
 
     def _verify_signature_if_needed(self, raw_body: bytes, headers: dict[str, str]) -> None:
         if not settings.feishu_enable_signature_check:
             return
         if not settings.feishu_encrypt_key:
-            raise HTTPException(status_code=500, detail="已启用飞书签名校验，但缺少 FEISHU_ENCRYPT_KEY")
+            raise AppError("已启用飞书签名校验，但缺少 FEISHU_ENCRYPT_KEY")
 
         timestamp = headers.get("x-lark-request-timestamp") or headers.get("x-feishu-request-timestamp")
         nonce = headers.get("x-lark-request-nonce") or headers.get("x-feishu-request-nonce")
         signature = headers.get("x-lark-signature") or headers.get("x-feishu-signature")
         if not timestamp or not nonce or not signature:
-            raise HTTPException(status_code=401, detail="飞书签名请求头不完整")
+            raise UnauthorizedError("飞书签名请求头不完整")
 
         base = f"{timestamp}{nonce}{settings.feishu_encrypt_key}".encode("utf-8") + raw_body
         digest = hmac.new(settings.feishu_encrypt_key.encode("utf-8"), base, hashlib.sha256).digest()
         expected = base64.b64encode(digest).decode("utf-8")
         if not hmac.compare_digest(expected, signature):
-            raise HTTPException(status_code=401, detail="飞书签名校验失败")
+            raise UnauthorizedError("飞书签名校验失败")
 
     def _event_type(self, payload: dict[str, Any]) -> str | None:
         return payload.get("header", {}).get("event_type") or payload.get("event", {}).get("type")

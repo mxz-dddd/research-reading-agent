@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.core.exceptions import AppError
+
 import json
 import ssl
 from typing import Any
@@ -7,7 +9,6 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 import certifi
-from fastapi import HTTPException
 
 from app.agent.answer_builder import build_final_answer
 from app.agent.argument_resolver import resolve_arguments
@@ -63,8 +64,8 @@ class AgentOrchestrator:
                 answer=final_answer,
                 used_tool=tool_name,
             )
-        except (HTTPException, ValueError) as exc:
-            error = exc.detail if isinstance(exc, HTTPException) else str(exc)
+        except (AppError, ValueError) as exc:
+            error = exc.detail if isinstance(exc, AppError) else str(exc)
             return AgentQueryResponse(
                 success=False,
                 intent=intent,

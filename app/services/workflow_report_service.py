@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from app.core.exceptions import NotFoundError
+
 from pathlib import Path
 import json
 import re
 from typing import Any
 
-from fastapi import HTTPException
 
 from app.repositories.workflow_repo import WorkflowRunRepository
 from app.schemas.workflow import WorkflowReportResponse, WorkflowRunDetail
@@ -46,7 +47,7 @@ class WorkflowReportService:
         run = self._resolve_run(run_id)
         report_path = self._report_path(run.run_id)
         if not report_path.exists():
-            raise HTTPException(status_code=404, detail="workflow report 不存在，请先生成报告")
+            raise NotFoundError("workflow report 不存在，请先生成报告")
         try:
             report_markdown = report_path.read_text(encoding="utf-8")
         except OSError as exc:
@@ -103,7 +104,7 @@ class WorkflowReportService:
             return self.workflow_repo.get_by_run_id(run_id)
         run = self.workflow_repo.latest()
         if run is None:
-            raise HTTPException(status_code=404, detail="还没有 workflow run 记录")
+            raise NotFoundError("还没有 workflow run 记录")
         return run
 
     def _report_path(self, run_id: str) -> Path:

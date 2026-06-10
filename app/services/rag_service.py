@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from app.core.exceptions import InvalidRequestError
+
 from pathlib import Path
 import re
 from typing import Any
 from uuid import uuid4
 
-from fastapi import HTTPException
 
 from app.core.config import settings
 from app.rag.chunking import ContextualChunker
@@ -338,7 +339,7 @@ class RagService:
             return paper.abstract_summary, "abstract_summary", None, "未找到本地文本，已使用 abstract_summary。"
         if paper.abstract:
             return paper.abstract, "abstract", None, "未找到本地文本，已使用 abstract。"
-        raise HTTPException(status_code=400, detail="该论文没有可用于 RAG 索引的文本。")
+        raise InvalidRequestError("该论文没有可用于 RAG 索引的文本。")
 
     def _split_text(self, text: str, *, chunk_size: int, chunk_overlap: int) -> list[str]:
         normalized = re.sub(r"\s+", " ", text).strip()

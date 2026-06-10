@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from app.core.exceptions import NotFoundError
+
 from datetime import datetime, timezone
 from sqlite3 import Row
 
-from fastapi import HTTPException
 
 from app.core.database import get_connection
 from app.schemas.paper import (
@@ -75,7 +76,7 @@ class PaperRepository:
         with get_connection() as conn:
             row = conn.execute("SELECT * FROM papers WHERE id = ?", (paper_id,)).fetchone()
         if row is None:
-            raise HTTPException(status_code=404, detail="论文不存在")
+            raise NotFoundError("论文不存在")
         return _row_to_paper(row)
 
     def get_by_url(self, url: str) -> PaperRead | None:
@@ -102,7 +103,7 @@ class PaperRepository:
             conn.commit()
             row = conn.execute("SELECT * FROM papers WHERE id = ?", (paper_id,)).fetchone()
         if row is None:
-            raise HTTPException(status_code=404, detail="论文不存在")
+            raise NotFoundError("论文不存在")
         return _row_to_paper(row)
 
     def accept(self, paper_id: int, pdf_url: str | None = None) -> PaperRead:
@@ -124,7 +125,7 @@ class PaperRepository:
             conn.commit()
             row = conn.execute("SELECT * FROM papers WHERE id = ?", (paper_id,)).fetchone()
         if row is None:
-            raise HTTPException(status_code=404, detail="论文不存在")
+            raise NotFoundError("论文不存在")
         return _row_to_paper(row)
 
     def update_ingest_result(
@@ -170,7 +171,7 @@ class PaperRepository:
             conn.commit()
             row = conn.execute("SELECT * FROM papers WHERE id = ?", (paper_id,)).fetchone()
         if row is None:
-            raise HTTPException(status_code=404, detail="论文不存在")
+            raise NotFoundError("论文不存在")
         return _row_to_paper(row)
 
     def create_search_history(

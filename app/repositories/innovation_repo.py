@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from app.core.exceptions import NotFoundError
+
 from datetime import datetime, timezone
 import json
 from sqlite3 import Row
 
-from fastapi import HTTPException
 
 from app.core.database import get_connection
 from app.schemas.innovation import InnovationArtifactCreate, InnovationArtifactRead
@@ -58,7 +59,7 @@ class InnovationRepository:
                 "SELECT * FROM innovation_artifacts ORDER BY created_at DESC LIMIT 1"
             ).fetchone()
         if row is None:
-            raise HTTPException(status_code=404, detail="还没有生成过创新点分析")
+            raise NotFoundError("还没有生成过创新点分析")
         return _row_to_artifact(row)
 
     def list(self) -> list[InnovationArtifactRead]:

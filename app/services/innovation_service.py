@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.core.exceptions import AppError, InvalidRequestError
+
 import json
 import ssl
 from typing import Any
@@ -7,7 +9,6 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 import certifi
-from fastapi import HTTPException
 
 from app.core.config import settings
 from app.repositories.innovation_repo import InnovationRepository
@@ -34,10 +35,7 @@ class InnovationService:
     def generate(self, payload: InnovationGenerateRequest) -> InnovationArtifactRead:
         papers = self._select_papers(payload.topic)
         if len(papers) < 2:
-            raise HTTPException(
-                status_code=400,
-                detail="至少需要 2 篇已接收论文才能生成创新点分析。请先搜索、接收并尽量 ingest 更多论文。",
-            )
+            raise InvalidRequestError("至少需要 2 篇已接收论文才能生成创新点分析。请先搜索、接收并尽量 ingest 更多论文。")
 
         knowledge = self._latest_knowledge_or_none()
         data = self._build_with_llm(payload.topic, papers, knowledge)
@@ -106,7 +104,7 @@ class InnovationService:
     def _latest_knowledge_or_none(self) -> KnowledgeArtifactRead | None:
         try:
             return self.knowledge_repo.latest()
-        except HTTPException:
+        except AppError:
             return None
 
     def _build_with_llm(

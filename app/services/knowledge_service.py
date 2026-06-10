@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.core.exceptions import InvalidRequestError
+
 import json
 import ssl
 from typing import Any
@@ -7,7 +9,6 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 import certifi
-from fastapi import HTTPException
 
 from app.core.config import settings
 from app.repositories.knowledge_repo import KnowledgeRepository
@@ -31,10 +32,7 @@ class KnowledgeService:
     def generate(self, payload: KnowledgeGenerateRequest) -> KnowledgeArtifactRead:
         papers = self._select_papers(payload.topic)
         if len(papers) < 2:
-            raise HTTPException(
-                status_code=400,
-                detail="至少需要 2 篇已接收论文才能生成知识树。请先搜索、接收并尽量 ingest 更多论文。",
-            )
+            raise InvalidRequestError("至少需要 2 篇已接收论文才能生成知识树。请先搜索、接收并尽量 ingest 更多论文。")
 
         artifact_data = self._build_with_llm(payload.topic, papers)
         generation_method = "llm"

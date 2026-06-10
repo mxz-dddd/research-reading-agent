@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from app.core.exceptions import NotFoundError
+
 from datetime import datetime, timezone
 import json
 from sqlite3 import Row
 
-from fastapi import HTTPException
 
 from app.core.database import get_connection
 from app.schemas.workflow import WorkflowRunCreate, WorkflowRunDetail, WorkflowRunSummary
@@ -100,5 +101,5 @@ class WorkflowRunRepository:
                 (run_id,),
             ).fetchone()
         if row is None:
-            raise HTTPException(status_code=404, detail="workflow run 不存在")
+            raise NotFoundError("workflow run 不存在")
         return _row_to_detail(row)

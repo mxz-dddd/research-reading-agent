@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from app.core.exceptions import AppError
+
 import json
 from typing import Any
 
-from fastapi import HTTPException
 
 from app.core.config import settings
 from app.repositories.context_repo import ContextPackRepository, estimate_tokens
@@ -92,7 +93,7 @@ class ContextService:
             return None
         try:
             paper = self.paper_repo.get(int(paper_id))
-        except (HTTPException, ValueError):
+        except (AppError, ValueError):
             return None
         data: dict[str, Any] = {
             "title": paper.title,

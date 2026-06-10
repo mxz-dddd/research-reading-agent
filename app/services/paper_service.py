@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.core.exceptions import InvalidRequestError
+
 import json
 import ssl
 from typing import Any
@@ -7,7 +9,6 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 import certifi
-from fastapi import HTTPException
 
 from app.core.config import settings
 from app.repositories.paper_repo import PaperRepository
@@ -32,7 +33,7 @@ class PaperService:
     def search_and_store(self, payload: PaperSearchRequest) -> list[PaperRead]:
         topic = payload.search_topic.strip()
         if not topic:
-            raise HTTPException(status_code=400, detail="topic 不能为空")
+            raise InvalidRequestError("topic 不能为空")
 
         search_result = search_papers(query=topic, limit=payload.result_limit)
         papers: list[PaperRead] = []
