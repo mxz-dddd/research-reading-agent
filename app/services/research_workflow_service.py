@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any
 from uuid import uuid4
 
@@ -20,28 +22,23 @@ from app.services.rag_service import RagService
 
 
 class ResearchWorkflowService:
-    def __init__(self) -> None:
-        self.paper_service = PaperService()
-        self.knowledge_service = KnowledgeService()
-        self.innovation_service = InnovationService()
-        self.rag_service = RagService()
-        self.workflow_repo = WorkflowRunRepository()
+    def __init__(
+        self,
+        paper_service: PaperService | None = None,
+        knowledge_service: KnowledgeService | None = None,
+        innovation_service: InnovationService | None = None,
+        rag_service: RagService | None = None,
+        workflow_repo: WorkflowRunRepository | None = None,
+    ) -> None:
+        self.paper_service = paper_service if paper_service is not None else PaperService()
+        self.knowledge_service = knowledge_service if knowledge_service is not None else KnowledgeService()
+        self.innovation_service = innovation_service if innovation_service is not None else InnovationService()
+        self.rag_service = rag_service if rag_service is not None else RagService()
+        self.workflow_repo = workflow_repo if workflow_repo is not None else WorkflowRunRepository()
 
     def run(self, payload: ResearchWorkflowRequest) -> ResearchWorkflowResponse:
-        return self.run_research_workflow(
-            topic=payload.topic,
-            max_results=payload.max_results,
-            accept_top_k=payload.accept_top_k,
-            ingest=payload.ingest,
-            index_rag=payload.index_rag,
-            rag_chunk_size=payload.rag_chunk_size,
-            rag_chunk_overlap=payload.rag_chunk_overlap,
-            generate_knowledge=payload.generate_knowledge,
-            generate_innovation=payload.generate_innovation,
-            dry_run=payload.dry_run,
-            user_id=payload.user_id,
-            session_id=payload.session_id,
-        )
+        # schema 字段与 run_research_workflow 的关键字参数一一对应
+        return self.run_research_workflow(**payload.model_dump())
 
     def run_research_workflow(
         self,
@@ -454,7 +451,7 @@ class ResearchWorkflowService:
         return self.workflow_repo.latest()
 
     def list_workflow_history(self, limit: int = 10) -> list[WorkflowRunSummary]:
-        return self.workflow_repo.list(limit=limit)
+        return self.workflow_repo.list_all(limit=limit)
 
     def get_workflow_detail(self, run_id: str) -> WorkflowRunDetail:
         return self.workflow_repo.get_by_run_id(run_id)

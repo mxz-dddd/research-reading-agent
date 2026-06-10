@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import ssl
 from typing import Any
@@ -5,9 +7,9 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 import certifi
-from fastapi import HTTPException
 
 from app.core.config import settings
+from app.core.exceptions import InvalidRequestError
 from app.repositories.knowledge_repo import KnowledgeRepository
 from app.repositories.paper_repo import PaperRepository
 from app.schemas.knowledge import (
@@ -21,18 +23,20 @@ from app.tools.build_tree import CATEGORIES, paper_label, pick_category
 
 
 class KnowledgeService:
-    def __init__(self) -> None:
-        self.paper_repo = PaperRepository()
-        self.knowledge_repo = KnowledgeRepository()
-        self.archive_service = ArchiveService()
+    def __init__(
+        self,
+        paper_repo: PaperRepository | None = None,
+        knowledge_repo: KnowledgeRepository | None = None,
+        archive_service: ArchiveService | None = None,
+    ) -> None:
+        self.paper_repo = paper_repo if paper_repo is not None else PaperRepository()
+        self.knowledge_repo = knowledge_repo if knowledge_repo is not None else KnowledgeRepository()
+        self.archive_service = archive_service if archive_service is not None else ArchiveService()
 
     def generate(self, payload: KnowledgeGenerateRequest) -> KnowledgeArtifactRead:
         papers = self._select_papers(payload.topic)
         if len(papers) < 2:
-            raise HTTPException(
-                status_code=400,
-                detail="至少需要 2 篇已接收论文才能生成知识树。请先搜索、接收并尽量 ingest 更多论文。",
-            )
+            raise InvalidRequestError("至少需要 2 篇已接收论文才能生成知识树。请先搜索、接收并尽量 ingest 更多论文。")
 
         artifact_data = self._build_with_llm(payload.topic, papers)
         generation_method = "llm"
@@ -65,7 +69,7 @@ class KnowledgeService:
         return self.knowledge_repo.latest()
 
     def history(self) -> list[KnowledgeArtifactRead]:
-        return self.knowledge_repo.list()
+        return self.knowledge_repo.list_all()
 
     def _select_papers(self, topic: str | None) -> list[PaperRead]:
         papers = self.paper_repo.list_accepted()

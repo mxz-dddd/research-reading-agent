@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import sys
 from pathlib import Path
 
 import pytest
-from fastapi import HTTPException
+
+from app.core.exceptions import NotFoundError
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -127,11 +130,11 @@ def test_workflow_report_service_raises_when_workflow_run_missing(monkeypatch: p
     service = WorkflowReportService()
 
     def raise_missing(run_id: str) -> None:
-        raise HTTPException(status_code=404, detail="workflow run 不存在")
+        raise NotFoundError("workflow run 不存在")
 
     monkeypatch.setattr(service.workflow_repo, "get_by_run_id", raise_missing)
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(NotFoundError) as exc_info:
         service.generate_report("missing")
 
     assert exc_info.value.status_code == 404

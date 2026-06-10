@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
@@ -12,7 +14,7 @@ class AgentQueryRequest(BaseModel):
     topic_id: int | None = Field(default=None, description="可选研究方向 ID")
 
     @model_validator(mode="after")
-    def require_message_or_query(self) -> "AgentQueryRequest":
+    def require_message_or_query(self) -> AgentQueryRequest:
         if not self.message and not self.query:
             raise ValueError("message 或 query 至少需要填写一个")
         return self

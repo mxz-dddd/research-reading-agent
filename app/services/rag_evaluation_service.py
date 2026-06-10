@@ -1,5 +1,7 @@
-from typing import Any
+from __future__ import annotations
+
 import math
+from typing import Any
 
 from app.repositories.rag_evidence_feedback_repo import (
     RAG_EVIDENCE_LABEL_BY_SCORE,
@@ -8,14 +10,19 @@ from app.repositories.rag_evidence_feedback_repo import (
 )
 from app.repositories.rag_feedback_repo import RAG_RELEVANCE_LABELS, RagFeedbackRepository
 from app.repositories.rag_trace_repo import RagTraceRepository
-from app.schemas.rag import RagEvidenceFeedbackRead, RagTraceFeedbackRead, RagTraceRead
+from app.schemas.rag import RagEvidenceFeedbackRead, RagTraceFeedbackRead
 
 
 class RagEvaluationService:
-    def __init__(self) -> None:
-        self.trace_repo = RagTraceRepository()
-        self.feedback_repo = RagFeedbackRepository()
-        self.evidence_feedback_repo = RagEvidenceFeedbackRepository()
+    def __init__(
+        self,
+        trace_repo: RagTraceRepository | None = None,
+        feedback_repo: RagFeedbackRepository | None = None,
+        evidence_feedback_repo: RagEvidenceFeedbackRepository | None = None,
+    ) -> None:
+        self.trace_repo = trace_repo if trace_repo is not None else RagTraceRepository()
+        self.feedback_repo = feedback_repo if feedback_repo is not None else RagFeedbackRepository()
+        self.evidence_feedback_repo = evidence_feedback_repo if evidence_feedback_repo is not None else RagEvidenceFeedbackRepository()
 
     def add_trace_feedback(
         self,

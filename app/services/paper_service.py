@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import ssl
 from typing import Any
@@ -5,9 +7,9 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 import certifi
-from fastapi import HTTPException
 
 from app.core.config import settings
+from app.core.exceptions import InvalidRequestError
 from app.repositories.paper_repo import PaperRepository
 from app.schemas.paper import (
     PaperAcceptRequest,
@@ -23,14 +25,18 @@ from app.tools.search_papers import search_papers
 
 
 class PaperService:
-    def __init__(self) -> None:
-        self.paper_repo = PaperRepository()
-        self.archive_service = ArchiveService()
+    def __init__(
+        self,
+        paper_repo: PaperRepository | None = None,
+        archive_service: ArchiveService | None = None,
+    ) -> None:
+        self.paper_repo = paper_repo if paper_repo is not None else PaperRepository()
+        self.archive_service = archive_service if archive_service is not None else ArchiveService()
 
     def search_and_store(self, payload: PaperSearchRequest) -> list[PaperRead]:
         topic = payload.search_topic.strip()
         if not topic:
-            raise HTTPException(status_code=400, detail="topic 不能为空")
+            raise InvalidRequestError("topic 不能为空")
 
         search_result = search_papers(query=topic, limit=payload.result_limit)
         papers: list[PaperRead] = []
@@ -68,7 +74,7 @@ class PaperService:
         return papers
 
     def list_papers(self, status: str | None = None) -> list[PaperRead]:
-        return self.paper_repo.list(status=status)
+        return self.paper_repo.list_all(status=status)
 
     def list_search_history(self) -> list[PaperSearchHistoryRead]:
         return self.paper_repo.list_search_history()
@@ -289,7 +295,8 @@ class PaperService:
         return None
 
     def _read_text_preview(self, path: str, max_chars: int = 12000) -> str:
-        text = open(path, encoding="utf-8").read()
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
         return text[:max_chars]
 
     def _build_abstract_summary(self, paper: PaperRead) -> str:

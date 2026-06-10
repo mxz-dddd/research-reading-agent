@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any
 
 from app.agent.fallback_router import (
@@ -7,14 +9,14 @@ from app.agent.fallback_router import (
     extract_evidence_relevance_score,
     extract_max_results,
     extract_rag_chunk_id,
-    extract_rag_query,
     extract_rag_feedback_notes,
+    extract_rag_query,
     extract_rag_relevance_label,
     extract_rag_trace_id,
     extract_search_topic,
     extract_top_k,
-    extract_workflow_topic,
     extract_workflow_index_rag,
+    extract_workflow_topic,
 )
 from app.schemas.agent import AgentQueryRequest
 

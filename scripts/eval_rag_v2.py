@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
 import json
-from pathlib import Path
 import sys
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -15,7 +15,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.services.rag_quality_eval_service import GoldenQuery, RagQualityEvalService, RetrievalEvalResult
+from app.services.rag_quality_eval_service import (
+    GoldenQuery,
+    RagQualityEvalService,
+    RetrievalEvalResult,
+)
 
 
 def _join_url(base_url: str, path: str) -> str:

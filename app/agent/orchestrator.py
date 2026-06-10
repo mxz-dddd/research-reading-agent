@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import ssl
 from typing import Any
@@ -5,7 +7,6 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 import certifi
-from fastapi import HTTPException
 
 from app.agent.answer_builder import build_final_answer
 from app.agent.argument_resolver import resolve_arguments
@@ -13,14 +14,19 @@ from app.agent.fallback_router import route_with_fallback
 from app.agent.prompts import AGENT_ROUTER_PROMPT
 from app.agent.tool_registry import ToolRegistry
 from app.core.config import settings
+from app.core.exceptions import AppError
 from app.repositories.session_repo import SessionStateRepository
 from app.schemas.agent import AgentQueryRequest, AgentQueryResponse, AgentToolCall
 
 
 class AgentOrchestrator:
-    def __init__(self) -> None:
-        self.registry = ToolRegistry()
-        self.session_repo = SessionStateRepository()
+    def __init__(
+        self,
+        registry: ToolRegistry | None = None,
+        session_repo: SessionStateRepository | None = None,
+    ) -> None:
+        self.registry = registry if registry is not None else ToolRegistry()
+        self.session_repo = session_repo if session_repo is not None else SessionStateRepository()
 
     def query(self, payload: AgentQueryRequest) -> AgentQueryResponse:
         message = payload.text
@@ -61,8 +67,8 @@ class AgentOrchestrator:
                 answer=final_answer,
                 used_tool=tool_name,
             )
-        except (HTTPException, ValueError) as exc:
-            error = exc.detail if isinstance(exc, HTTPException) else str(exc)
+        except (AppError, ValueError) as exc:
+            error = exc.detail if isinstance(exc, AppError) else str(exc)
             return AgentQueryResponse(
                 success=False,
                 intent=intent,

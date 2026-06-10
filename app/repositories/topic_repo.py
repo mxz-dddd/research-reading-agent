@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime, timezone
 from sqlite3 import Row
 
@@ -31,7 +33,7 @@ class TopicRepository:
             ).fetchone()
         return _row_to_topic(row)
 
-    def list(self) -> list[TopicRead]:
+    def list_all(self) -> list[TopicRead]:
         with get_connection() as conn:
             rows = conn.execute(
                 "SELECT * FROM research_topics ORDER BY created_at DESC"

@@ -1,5 +1,7 @@
-from datetime import datetime, timezone
+from __future__ import annotations
+
 import json
+from datetime import datetime, timezone
 from sqlite3 import Row
 from uuid import uuid4
 

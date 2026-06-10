@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -74,7 +76,7 @@ def test_workflow_repo_lists_history(workflow_repo: WorkflowRunRepository) -> No
     workflow_repo.create(sample_workflow_run("run-001", topic="first"))
     workflow_repo.create(sample_workflow_run("run-002", topic="second"))
 
-    history = workflow_repo.list(limit=1)
+    history = workflow_repo.list_all(limit=1)
 
     assert len(history) == 1
     assert history[0].run_id == "run-002"

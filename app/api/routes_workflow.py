@@ -1,12 +1,14 @@
+from __future__ import annotations
+
 from fastapi import APIRouter, Query
 
 from app.schemas.workflow import (
     ResearchWorkflowRequest,
     ResearchWorkflowResponse,
+    WorkflowReportResponse,
     WorkflowRunDetailResponse,
     WorkflowRunHistoryResponse,
     WorkflowRunLatestResponse,
-    WorkflowReportResponse,
 )
 from app.services.research_workflow_service import ResearchWorkflowService
 from app.services.workflow_report_service import WorkflowReportService

@@ -1,10 +1,11 @@
-from datetime import datetime, timezone
+from __future__ import annotations
+
 import json
+from datetime import datetime, timezone
 from sqlite3 import Row
 
-from fastapi import HTTPException
-
 from app.core.database import get_connection
+from app.core.exceptions import NotFoundError
 from app.schemas.workflow import WorkflowRunCreate, WorkflowRunDetail, WorkflowRunSummary
 
 
@@ -82,7 +83,7 @@ class WorkflowRunRepository:
             return None
         return _row_to_detail(row)
 
-    def list(self, limit: int = 10) -> list[WorkflowRunSummary]:
+    def list_all(self, limit: int = 10) -> list[WorkflowRunSummary]:
         safe_limit = max(1, min(limit, 100))
         with get_connection() as conn:
             rows = conn.execute(
@@ -98,5 +99,5 @@ class WorkflowRunRepository:
                 (run_id,),
             ).fetchone()
         if row is None:
-            raise HTTPException(status_code=404, detail="workflow run 不存在")
+            raise NotFoundError("workflow run 不存在")
         return _row_to_detail(row)

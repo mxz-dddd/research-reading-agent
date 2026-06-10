@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import ssl
 from typing import Any
@@ -5,9 +7,9 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 import certifi
-from fastapi import HTTPException
 
 from app.core.config import settings
+from app.core.exceptions import AppError, InvalidRequestError
 from app.repositories.innovation_repo import InnovationRepository
 from app.repositories.knowledge_repo import KnowledgeRepository
 from app.repositories.paper_repo import PaperRepository
@@ -23,19 +25,22 @@ from app.tools.mine_innovation import build_fallback_innovations
 
 
 class InnovationService:
-    def __init__(self) -> None:
-        self.paper_repo = PaperRepository()
-        self.knowledge_repo = KnowledgeRepository()
-        self.innovation_repo = InnovationRepository()
-        self.archive_service = ArchiveService()
+    def __init__(
+        self,
+        paper_repo: PaperRepository | None = None,
+        knowledge_repo: KnowledgeRepository | None = None,
+        innovation_repo: InnovationRepository | None = None,
+        archive_service: ArchiveService | None = None,
+    ) -> None:
+        self.paper_repo = paper_repo if paper_repo is not None else PaperRepository()
+        self.knowledge_repo = knowledge_repo if knowledge_repo is not None else KnowledgeRepository()
+        self.innovation_repo = innovation_repo if innovation_repo is not None else InnovationRepository()
+        self.archive_service = archive_service if archive_service is not None else ArchiveService()
 
     def generate(self, payload: InnovationGenerateRequest) -> InnovationArtifactRead:
         papers = self._select_papers(payload.topic)
         if len(papers) < 2:
-            raise HTTPException(
-                status_code=400,
-                detail="至少需要 2 篇已接收论文才能生成创新点分析。请先搜索、接收并尽量 ingest 更多论文。",
-            )
+            raise InvalidRequestError("至少需要 2 篇已接收论文才能生成创新点分析。请先搜索、接收并尽量 ingest 更多论文。")
 
         knowledge = self._latest_knowledge_or_none()
         data = self._build_with_llm(payload.topic, papers, knowledge)
@@ -80,7 +85,7 @@ class InnovationService:
         return self.innovation_repo.latest()
 
     def history(self) -> list[InnovationArtifactRead]:
-        return self.innovation_repo.list()
+        return self.innovation_repo.list_all()
 
     def _select_papers(self, topic: str | None) -> list[PaperRead]:
         papers = self.paper_repo.list_accepted()
@@ -104,7 +109,7 @@ class InnovationService:
     def _latest_knowledge_or_none(self) -> KnowledgeArtifactRead | None:
         try:
             return self.knowledge_repo.latest()
-        except HTTPException:
+        except AppError:
             return None
 
     def _build_with_llm(

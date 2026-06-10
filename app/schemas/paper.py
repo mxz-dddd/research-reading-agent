@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -10,7 +12,7 @@ class PaperSearchRequest(BaseModel):
     limit: int | None = Field(default=None, ge=1, le=20, description="返回论文数量")
 
     @model_validator(mode="after")
-    def require_topic_or_query(self) -> "PaperSearchRequest":
+    def require_topic_or_query(self) -> PaperSearchRequest:
         if not self.topic and not self.query:
             raise ValueError("topic 或 query 至少需要填写一个")
         return self
@@ -44,7 +46,7 @@ class PaperAcceptRequest(BaseModel):
     url: str | None = Field(default=None, description="论文链接，paper_id 为空时使用")
 
     @model_validator(mode="after")
-    def require_paper_id_or_url(self) -> "PaperAcceptRequest":
+    def require_paper_id_or_url(self) -> PaperAcceptRequest:
         if self.paper_id is None and not self.url:
             raise ValueError("paper_id 或 url 至少需要填写一个")
         return self

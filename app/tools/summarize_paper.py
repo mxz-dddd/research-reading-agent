@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 def summarize_paper(title: str, abstract: str | None = None) -> str:
     # TODO: 后续统一改为调用 PaperService 的 LLM 总结能力。
     if abstract:

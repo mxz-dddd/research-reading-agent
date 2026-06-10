@@ -1,20 +1,23 @@
-from pathlib import Path
+from __future__ import annotations
+
 import json
 import re
+from pathlib import Path
 from typing import Any
 
-from fastapi import HTTPException
-
+from app.core.exceptions import NotFoundError
 from app.repositories.workflow_repo import WorkflowRunRepository
 from app.schemas.workflow import WorkflowReportResponse, WorkflowRunDetail
-
 
 DRY_RUN_REPORT_WARNING = "当前报告基于 dry_run 模式生成，仅用于演示流程结构，不代表真实论文检索或真实模型生成结果。"
 
 
 class WorkflowReportService:
-    def __init__(self) -> None:
-        self.workflow_repo = WorkflowRunRepository()
+    def __init__(
+        self,
+        workflow_repo: WorkflowRunRepository | None = None,
+    ) -> None:
+        self.workflow_repo = workflow_repo if workflow_repo is not None else WorkflowRunRepository()
         self.report_dir = Path("data/archives/workflow_reports")
 
     def generate_report(self, run_id: str | None = None) -> WorkflowReportResponse:
@@ -44,7 +47,7 @@ class WorkflowReportService:
         run = self._resolve_run(run_id)
         report_path = self._report_path(run.run_id)
         if not report_path.exists():
-            raise HTTPException(status_code=404, detail="workflow report 不存在，请先生成报告")
+            raise NotFoundError("workflow report 不存在，请先生成报告")
         try:
             report_markdown = report_path.read_text(encoding="utf-8")
         except OSError as exc:
@@ -101,7 +104,7 @@ class WorkflowReportService:
             return self.workflow_repo.get_by_run_id(run_id)
         run = self.workflow_repo.latest()
         if run is None:
-            raise HTTPException(status_code=404, detail="还没有 workflow run 记录")
+            raise NotFoundError("还没有 workflow run 记录")
         return run
 
     def _report_path(self, run_id: str) -> Path:

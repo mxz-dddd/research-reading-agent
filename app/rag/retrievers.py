@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from app.rag.embeddings import cosine_similarity, get_embedding_provider
 from app.rag.fusion import reciprocal_rank_fusion
 from app.rag.rerankers import DeterministicReranker

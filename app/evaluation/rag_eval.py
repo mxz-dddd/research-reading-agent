@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from types import SimpleNamespace
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 from typing import Any
 
 from app.core import database
 from app.repositories.rag_repo import RagChunkRepository
 from app.schemas.rag import RagChunkCreate, RagSearchChunk
-
 
 DEFAULT_CASES_PATH = Path(__file__).with_name("rag_eval_cases.json")
 

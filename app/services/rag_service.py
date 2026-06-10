@@ -1,17 +1,17 @@
-from pathlib import Path
+from __future__ import annotations
+
 import re
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from fastapi import HTTPException
-
 from app.core.config import settings
+from app.core.exceptions import InvalidRequestError
 from app.rag.chunking import ContextualChunker
 from app.rag.retrievers import HybridRetriever
 from app.repositories.paper_repo import PaperRepository
 from app.repositories.rag_repo import RagChunkRepository
 from app.repositories.rag_trace_repo import RagTraceRepository
-from app.services.context_service import ContextService
 from app.schemas.paper import PaperRead
 from app.schemas.rag import (
     RagAnswerResponse,
@@ -22,18 +22,24 @@ from app.schemas.rag import (
     RagTraceCreate,
     RagTraceRead,
 )
-
+from app.services.context_service import ContextService
 
 RAG_V1_WARNING = "RAG v1 基于本地关键词检索生成保守回答，不代表完整语义理解。"
 RAG_V2_WARNING = "RAG v2 使用 contextual chunk、hybrid retrieval、RRF fusion 和轻量 rerank 生成证据约束回答。"
 
 
 class RagService:
-    def __init__(self) -> None:
-        self.paper_repo = PaperRepository()
-        self.rag_repo = RagChunkRepository()
-        self.trace_repo = RagTraceRepository()
-        self.context_service = ContextService()
+    def __init__(
+        self,
+        paper_repo: PaperRepository | None = None,
+        rag_repo: RagChunkRepository | None = None,
+        trace_repo: RagTraceRepository | None = None,
+        context_service: ContextService | None = None,
+    ) -> None:
+        self.paper_repo = paper_repo if paper_repo is not None else PaperRepository()
+        self.rag_repo = rag_repo if rag_repo is not None else RagChunkRepository()
+        self.trace_repo = trace_repo if trace_repo is not None else RagTraceRepository()
+        self.context_service = context_service if context_service is not None else ContextService()
 
     def index_paper_for_rag(
         self,
@@ -336,7 +342,7 @@ class RagService:
             return paper.abstract_summary, "abstract_summary", None, "未找到本地文本，已使用 abstract_summary。"
         if paper.abstract:
             return paper.abstract, "abstract", None, "未找到本地文本，已使用 abstract。"
-        raise HTTPException(status_code=400, detail="该论文没有可用于 RAG 索引的文本。")
+        raise InvalidRequestError("该论文没有可用于 RAG 索引的文本。")
 
     def _split_text(self, text: str, *, chunk_size: int, chunk_overlap: int) -> list[str]:
         normalized = re.sub(r"\s+", " ", text).strip()

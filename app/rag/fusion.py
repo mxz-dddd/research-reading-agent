@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 def reciprocal_rank_fusion(rankings: list[list[str]], k: int = 60) -> dict[str, float]:
     scores: dict[str, float] = {}
     for ranking in rankings:

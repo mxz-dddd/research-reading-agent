@@ -1,9 +1,10 @@
+from __future__ import annotations
+
 import json
 from typing import Any
 
-from fastapi import HTTPException
-
 from app.core.config import settings
+from app.core.exceptions import AppError
 from app.repositories.context_repo import ContextPackRepository, estimate_tokens
 from app.repositories.paper_repo import PaperRepository
 from app.repositories.session_repo import SessionStateRepository
@@ -12,10 +13,15 @@ from app.schemas.rag import RagSearchChunk
 
 
 class ContextService:
-    def __init__(self) -> None:
-        self.context_repo = ContextPackRepository()
-        self.session_repo = SessionStateRepository()
-        self.paper_repo = PaperRepository()
+    def __init__(
+        self,
+        context_repo: ContextPackRepository | None = None,
+        session_repo: SessionStateRepository | None = None,
+        paper_repo: PaperRepository | None = None,
+    ) -> None:
+        self.context_repo = context_repo if context_repo is not None else ContextPackRepository()
+        self.session_repo = session_repo if session_repo is not None else SessionStateRepository()
+        self.paper_repo = paper_repo if paper_repo is not None else PaperRepository()
 
     def build_context_pack(
         self,
@@ -90,7 +96,7 @@ class ContextService:
             return None
         try:
             paper = self.paper_repo.get(int(paper_id))
-        except (HTTPException, ValueError):
+        except (AppError, ValueError):
             return None
         data: dict[str, Any] = {
             "title": paper.title,

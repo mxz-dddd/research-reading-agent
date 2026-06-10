@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from app.agent.tool_registry import ToolRegistry as ResearchToolRegistry
 from app.services.tool_mux import ToolCache, ToolMux, ToolRegistry
 

@@ -1,5 +1,6 @@
-import re
+from __future__ import annotations
 
+import re
 
 SECTION_RE = re.compile(
     r"^\s*((\d+(\.\d+)*)\s+)?(abstract|introduction|background|method|methods|methodology|experiment|experiments|results|discussion|conclusion|references)\b.*$",

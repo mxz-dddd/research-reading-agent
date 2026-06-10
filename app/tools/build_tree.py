@@ -1,5 +1,6 @@
-from app.schemas.paper import PaperRead
+from __future__ import annotations
 
+from app.schemas.paper import PaperRead
 
 CATEGORIES = [
     "背景与综述",
