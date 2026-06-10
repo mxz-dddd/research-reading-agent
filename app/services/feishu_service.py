@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from app.core.exceptions import AppError, InvalidRequestError, UnauthorizedError
-
 import base64
 import hashlib
 import hmac
@@ -15,6 +13,7 @@ from urllib.request import Request, urlopen
 import certifi
 
 from app.core.config import settings
+from app.core.exceptions import AppError, InvalidRequestError, UnauthorizedError
 from app.schemas.agent import AgentQueryRequest
 from app.services.agent_service import AgentService
 
@@ -113,7 +112,7 @@ class FeishuService:
         if not timestamp or not nonce or not signature:
             raise UnauthorizedError("飞书签名请求头不完整")
 
-        base = f"{timestamp}{nonce}{settings.feishu_encrypt_key}".encode("utf-8") + raw_body
+        base = f"{timestamp}{nonce}{settings.feishu_encrypt_key}".encode() + raw_body
         digest = hmac.new(settings.feishu_encrypt_key.encode("utf-8"), base, hashlib.sha256).digest()
         expected = base64.b64encode(digest).decode("utf-8")
         if not hmac.compare_digest(expected, signature):

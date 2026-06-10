@@ -6,7 +6,6 @@ from typing import Any
 from app.schemas.context import ContextPackRead
 from app.schemas.rag import RagSearchChunk
 
-
 EMPTY_CONTEXT_SUMMARY = {
     "context_pack_id": None,
     "item_count": 0,

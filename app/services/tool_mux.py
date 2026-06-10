@@ -6,9 +6,9 @@ import inspect
 import json
 import time
 from collections import OrderedDict
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
-from typing import Any, Callable
-
+from typing import Any
 
 READ_ONLY_PREFIXES = ("get", "list", "read", "search", "status")
 MUTATING_PREFIXES = (

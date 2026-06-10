@@ -4,7 +4,6 @@ from typing import Any
 
 from app.schemas.paper import PaperRead
 
-
 GAP_CATEGORIES = [
     "problem gap",
     "method gap",

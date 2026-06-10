@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from typing import Any
 import math
+from typing import Any
 
 from app.repositories.rag_evidence_feedback_repo import (
     RAG_EVIDENCE_LABEL_BY_SCORE,
@@ -10,7 +10,7 @@ from app.repositories.rag_evidence_feedback_repo import (
 )
 from app.repositories.rag_feedback_repo import RAG_RELEVANCE_LABELS, RagFeedbackRepository
 from app.repositories.rag_trace_repo import RagTraceRepository
-from app.schemas.rag import RagEvidenceFeedbackRead, RagTraceFeedbackRead, RagTraceRead
+from app.schemas.rag import RagEvidenceFeedbackRead, RagTraceFeedbackRead
 
 
 class RagEvaluationService:

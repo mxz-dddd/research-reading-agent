@@ -7,7 +7,6 @@ from uuid import uuid4
 from app.core.database import get_connection
 from app.schemas.rag import RagEvidenceFeedbackRead
 
-
 RAG_EVIDENCE_LABEL_BY_SCORE = {
     0: "irrelevant",
     1: "partially_relevant",

@@ -1,20 +1,17 @@
 from __future__ import annotations
 
-from app.core.exceptions import InvalidRequestError
-
-from pathlib import Path
 import re
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-
 from app.core.config import settings
+from app.core.exceptions import InvalidRequestError
 from app.rag.chunking import ContextualChunker
 from app.rag.retrievers import HybridRetriever
 from app.repositories.paper_repo import PaperRepository
 from app.repositories.rag_repo import RagChunkRepository
 from app.repositories.rag_trace_repo import RagTraceRepository
-from app.services.context_service import ContextService
 from app.schemas.paper import PaperRead
 from app.schemas.rag import (
     RagAnswerResponse,
@@ -25,7 +22,7 @@ from app.schemas.rag import (
     RagTraceCreate,
     RagTraceRead,
 )
-
+from app.services.context_service import ContextService
 
 RAG_V1_WARNING = "RAG v1 基于本地关键词检索生成保守回答，不代表完整语义理解。"
 RAG_V2_WARNING = "RAG v2 使用 contextual chunk、hybrid retrieval、RRF fusion 和轻量 rerank 生成证据约束回答。"

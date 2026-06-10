@@ -4,8 +4,8 @@ from typing import Any
 
 from app.agent.orchestrator import AgentOrchestrator
 from app.agent.tool_mux_factory import build_research_tool_mux
-from app.services.tool_mux import ToolMux
 from app.schemas.agent import AgentQueryRequest, AgentQueryResponse
+from app.services.tool_mux import ToolMux
 
 
 class AgentService:

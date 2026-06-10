@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from app.core.exceptions import InvalidRequestError
-
 import json
 import ssl
 from typing import Any
@@ -11,6 +9,7 @@ from urllib.request import Request, urlopen
 import certifi
 
 from app.core.config import settings
+from app.core.exceptions import InvalidRequestError
 from app.repositories.knowledge_repo import KnowledgeRepository
 from app.repositories.paper_repo import PaperRepository
 from app.schemas.knowledge import (

@@ -18,8 +18,8 @@ from app.api import (
     routes_workflow,
 )
 from app.core.config import settings
-from app.core.exceptions import AppError
 from app.core.database import init_db
+from app.core.exceptions import AppError
 
 
 @asynccontextmanager

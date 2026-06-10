@@ -5,7 +5,6 @@ from typing import Any
 import requests
 import streamlit as st
 
-
 DEFAULT_API_BASE_URL = "http://127.0.0.1:8000"
 BACKEND_HELP = "后端未运行，请先启动 FastAPI 后端：\nuvicorn app.main:app --reload"
 

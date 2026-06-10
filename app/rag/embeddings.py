@@ -29,7 +29,7 @@ class HashEmbeddingProvider:
 
 
 def cosine_similarity(left: list[float], right: list[float]) -> float:
-    return sum(a * b for a, b in zip(left, right))
+    return sum(a * b for a, b in zip(left, right, strict=False))
 
 
 def get_embedding_provider(provider: str = "hash", dim: int = 256) -> HashEmbeddingProvider:

@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from app.core.exceptions import NotFoundError
-
-from datetime import datetime, timezone
 import json
+from datetime import datetime, timezone
 from sqlite3 import Row
 
-
 from app.core.database import get_connection
+from app.core.exceptions import NotFoundError
 from app.schemas.innovation import InnovationArtifactCreate, InnovationArtifactRead
 
 

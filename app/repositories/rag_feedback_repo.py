@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import json
+from datetime import datetime, timezone
 from sqlite3 import Row
 from uuid import uuid4
 
 from app.core.database import get_connection
 from app.schemas.rag import RagTraceFeedbackRead
-
 
 RAG_RELEVANCE_LABELS = {
     "relevant",

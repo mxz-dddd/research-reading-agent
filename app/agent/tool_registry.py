@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from app.repositories.session_repo import SessionStateRepository
 from app.schemas.innovation import InnovationGenerateRequest

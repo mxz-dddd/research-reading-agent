@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from app.core.exceptions import InvalidRequestError
-
 import json
 import ssl
 from typing import Any
@@ -11,6 +9,7 @@ from urllib.request import Request, urlopen
 import certifi
 
 from app.core.config import settings
+from app.core.exceptions import InvalidRequestError
 from app.repositories.paper_repo import PaperRepository
 from app.schemas.paper import (
     PaperAcceptRequest,
@@ -296,7 +295,8 @@ class PaperService:
         return None
 
     def _read_text_preview(self, path: str, max_chars: int = 12000) -> str:
-        text = open(path, encoding="utf-8").read()
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
         return text[:max_chars]
 
     def _build_abstract_summary(self, paper: PaperRead) -> str:

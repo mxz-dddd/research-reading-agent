@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from app.core.exceptions import AppError
-
 import json
 import ssl
 from typing import Any
@@ -16,6 +14,7 @@ from app.agent.fallback_router import route_with_fallback
 from app.agent.prompts import AGENT_ROUTER_PROMPT
 from app.agent.tool_registry import ToolRegistry
 from app.core.config import settings
+from app.core.exceptions import AppError
 from app.repositories.session_repo import SessionStateRepository
 from app.schemas.agent import AgentQueryRequest, AgentQueryResponse, AgentToolCall
 

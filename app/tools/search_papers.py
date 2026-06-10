@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import ssl
+import xml.etree.ElementTree as ET
+from dataclasses import dataclass
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
-import xml.etree.ElementTree as ET
 
 import certifi
-
 
 ARXIV_API_URL = "https://export.arxiv.org/api/query"
 

@@ -10,9 +10,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.agent.orchestrator import AgentOrchestrator
 from app.agent.argument_resolver import resolve_arguments
 from app.agent.fallback_router import route_with_fallback
+from app.agent.orchestrator import AgentOrchestrator
 from app.schemas.agent import AgentQueryRequest
 
 
