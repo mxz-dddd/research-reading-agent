@@ -209,6 +209,9 @@ def run_eval(args: argparse.Namespace) -> tuple[int, dict[str, Any] | None]:
     print(f"avg_recall_expected_chunk_ids: {summary['avg_recall_expected_chunk_ids']:.3f}")
     print(f"avg_recall_expected_paper_ids: {summary['avg_recall_expected_paper_ids']:.3f}")
     print(f"answer_contains_any_rate: {summary['answer_contains_any_rate']}")
+    print(f"llm_answer_rate: {summary.get('llm_answer_rate')}")
+    print(f"citation_faithful_rate: {summary.get('citation_faithful_rate')}")
+    print(f"avg_citation_precision: {summary.get('avg_citation_precision')}")
     print(f"error_count: {summary['error_count']}")
     print(f"输出文件路径: {output_path}")
     return 0, output

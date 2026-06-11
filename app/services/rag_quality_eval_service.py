@@ -3,7 +3,10 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 import json
 from pathlib import Path
+import re
 from typing import Any
+
+CITATION_PATTERN = re.compile(r"\[chunk:([^\]\s]+)\]")
 
 
 @dataclass
@@ -38,6 +41,8 @@ class RetrievalEvalResult:
     context_pack_id: str | None
     pipeline: dict[str, Any]
     error: str | None = None
+    answer_mode: str | None = None
+    citation_faithfulness: dict[str, Any] | None = None
 
 
 class RagQualityEvalService:
@@ -132,8 +137,17 @@ class RagQualityEvalService:
         else:
             answer_contains_any = None
 
+        answer_mode = self._read_str(response, "answer_mode")
+        citation_faithfulness = self._citation_faithfulness(
+            answer=str(answer),
+            response=response,
+            answer_mode=answer_mode,
+        )
+
         if retrieval_result is not None:
             retrieval_result.answer_contains_any = answer_contains_any
+            retrieval_result.answer_mode = answer_mode
+            retrieval_result.citation_faithfulness = citation_faithfulness
             if not retrieval_result.context_pack_id:
                 retrieval_result.context_pack_id = self._read_str(response, "context_pack_id")
             if not retrieval_result.pipeline:
@@ -143,8 +157,41 @@ class RagQualityEvalService:
         return {
             "query_id": golden_query.query_id,
             "answer_contains_any": answer_contains_any,
+            "answer_mode": answer_mode,
+            "citation_faithfulness": citation_faithfulness,
             "context_pack_id": self._read_str(response, "context_pack_id"),
             "pipeline": self._read_dict(response, "pipeline"),
+        }
+
+    def _citation_faithfulness(
+        self,
+        *,
+        answer: str,
+        response: Any,
+        answer_mode: str | None,
+    ) -> dict[str, Any] | None:
+        """对 LLM 引用式回答计算 citation faithfulness；模板回答返回 None。"""
+        if answer_mode != "llm":
+            return None
+        evidence = self._extract_evidence(response)
+        evidence_ids = {
+            self._string_value(item, "chunk_id")
+            for item in evidence
+            if self._string_value(item, "chunk_id") is not None
+        }
+        cited = CITATION_PATTERN.findall(answer)
+        cited_unique = list(dict.fromkeys(cited))
+        valid_cited = [chunk_id for chunk_id in cited_unique if chunk_id in evidence_ids]
+        invalid_cited = [chunk_id for chunk_id in cited_unique if chunk_id not in evidence_ids]
+        precision = len(valid_cited) / len(cited_unique) if cited_unique else 0.0
+        return {
+            "citation_count": len(cited),
+            "unique_cited_chunk_ids": cited_unique,
+            "valid_cited_chunk_ids": valid_cited,
+            "invalid_cited_chunk_ids": invalid_cited,
+            "citation_precision": precision,
+            "has_citation": bool(cited_unique),
+            "faithful": bool(valid_cited) and not invalid_cited,
         }
 
     def summarize_results(self, results: list[RetrievalEvalResult]) -> dict[str, Any]:
@@ -156,6 +203,9 @@ class RagQualityEvalService:
                 "avg_recall_expected_chunk_ids": 0.0,
                 "avg_recall_expected_paper_ids": 0.0,
                 "answer_contains_any_rate": None,
+                "llm_answer_rate": None,
+                "citation_faithful_rate": None,
+                "avg_citation_precision": None,
                 "by_retrieval_mode": {},
             }
 
@@ -164,6 +214,12 @@ class RagQualityEvalService:
             by_mode.setdefault(result.retrieval_mode, []).append(result)
 
         answer_values = [result.answer_contains_any for result in results if result.answer_contains_any is not None]
+        answer_modes = [result.answer_mode for result in results if result.answer_mode is not None]
+        faithfulness = [
+            result.citation_faithfulness
+            for result in results
+            if result.citation_faithfulness is not None
+        ]
         return {
             "total": len(results),
             "error_count": sum(1 for result in results if result.error),
@@ -171,6 +227,19 @@ class RagQualityEvalService:
             "avg_recall_expected_chunk_ids": self._average([result.recall_expected_chunk_ids for result in results]),
             "avg_recall_expected_paper_ids": self._average([result.recall_expected_paper_ids for result in results]),
             "answer_contains_any_rate": self._bool_rate(answer_values),
+            "llm_answer_rate": (
+                sum(1 for mode in answer_modes if mode == "llm") / len(answer_modes)
+                if answer_modes
+                else None
+            ),
+            "citation_faithful_rate": self._bool_rate(
+                [bool(item.get("faithful")) for item in faithfulness]
+            ),
+            "avg_citation_precision": (
+                self._average([float(item.get("citation_precision") or 0.0) for item in faithfulness])
+                if faithfulness
+                else None
+            ),
             "by_retrieval_mode": {
                 mode: {
                     "total": len(mode_results),
