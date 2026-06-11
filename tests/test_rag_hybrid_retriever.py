@@ -74,3 +74,8 @@ def test_hybrid_retriever_fuses_dense_sparse_and_reranks(rag_repo: RagChunkRepos
     assert pipeline["dense_candidate_count"] >= 1
     assert pipeline["fused_candidate_count"] >= 2
     assert pipeline["rerank_enabled"] is True
+    assert pipeline["embedding_provider"] == "hash"
+    assert pipeline["embedding_model"] == "hash"
+    assert pipeline["embedding_dim"] == 256
+    assert pipeline["embedding_device"] is None
+    assert pipeline["embedding_batch_size"] is None

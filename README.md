@@ -179,7 +179,7 @@ PaperWeave 是这个工作台里的论文证据织网方法。它的作用是让
 
 - 使用 SQLite 保存 `rag_chunks`。
 - keyword 模式使用 keyword / token overlap 做检索。
-- hybrid 模式提供 PaperWeave 检索引擎：使用 contextual chunk、hash embedding dense retrieval、sparse retrieval、RRF fusion 和 deterministic rerank。
+- hybrid 模式提供 PaperWeave 检索引擎：使用 contextual chunk、可配置 embedding provider 的 dense retrieval、sparse retrieval、RRF fusion 和 deterministic rerank。
 - 返回 evidence chunks、`matched_terms` 和 `score_reason`。
 - 没有证据时不编造答案。
 - 每次 RAG search / answer 可以保存 trace。
@@ -188,9 +188,26 @@ PaperWeave 是这个工作台里的论文证据织网方法。它的作用是让
 - 支持 trace-level feedback 和 evidence-level feedback。
 - 可以计算 Recall@K、MRR、nDCG@5 等轻量指标。
 
-当前 PaperWeave 仍使用本地轻量 hybrid retrieval，不依赖外部 API，不引入 Qdrant，也不是生产级向量库。当前 dense retrieval 使用纯 Python hash embedding，它只是为了本地 deterministic dense retrieval 提供轻量实现；尚未接入 sentence-transformers、Qdrant、外部 reranker 或 GraphRAG。
+当前 PaperWeave 仍使用本地轻量 hybrid retrieval，不依赖外部 API，不引入 Qdrant，也不是生产级向量库。默认 dense retrieval 使用纯 Python hash embedding，它用于本地可测、无外部依赖、稳定回归；同时已支持可选 sentence-transformers provider，用于更真实的 dense retrieval。
 
-明确边界：尚未接入 Qdrant，尚未接入 sentence-transformers，尚未实现 GraphRAG，外部 reranker 也尚未接入。
+启用可选 sentence-transformers provider 时，先安装额外依赖：
+
+```bash
+pip install -r requirements-paperweave-optional.txt
+```
+
+然后配置：
+
+```env
+RAG_EMBEDDING_PROVIDER=sentence-transformers
+RAG_SENTENCE_TRANSFORMERS_MODEL=sentence-transformers/all-MiniLM-L6-v2
+RAG_SENTENCE_TRANSFORMERS_DEVICE=auto
+RAG_EMBEDDING_BATCH_SIZE=32
+```
+
+启用 sentence-transformers 后，建议使用 PaperWeave 标准问题集和 PaperWeave 评估看板对比 `hybrid` / `keyword` 以及不同 embedding provider 的结果。
+
+明确边界：尚未接入 Qdrant，尚未实现 GraphRAG，外部 reranker 也尚未接入。sentence-transformers 只是可选 provider；默认测试环境不要求安装它。
 
 RAG answer 只基于已索引的文本片段做保守回答，不等价于通读全部论文后的完整综合判断。
 
@@ -373,7 +390,7 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -p no:cacheprovider tests
 - evaluation
 - closed-loop dry_run
 
-当前本地测试结果为 `144 passed`。
+当前本地测试结果为 `198 passed`。
 
 ## 13. 当前边界
 
@@ -381,7 +398,8 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -p no:cacheprovider tests
 
 - keyword 模式仍是本地关键词 / token overlap 检索。
 - PaperWeave hybrid 模式是本地轻量 hybrid retrieval，不是 Qdrant / 生产级向量库。
-- 当前没有接入真实 sentence-transformers、Qdrant 或外部 reranker。
+- 默认 embedding provider 仍是 hash；sentence-transformers 是可选 provider，需要额外安装和配置。
+- 当前没有接入 Qdrant、GraphRAG 或外部 reranker。
 - `dry_run` 是模拟流程，不代表真实论文检索结果。
 - SQLite 适合本地原型，不是生产数据库。
 - Streamlit 是产品原型，不是正式前端。
@@ -393,7 +411,6 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -p no:cacheprovider tests
 
 后续可以继续补这些方向：
 
-- sentence-transformers embedding provider
 - Qdrant 向量库后端
 - 外部 reranker
 - GraphRAG
