@@ -1,6 +1,6 @@
 from app.rag.embeddings import cosine_similarity, get_embedding_provider
 from app.rag.fusion import reciprocal_rank_fusion
-from app.rag.rerankers import DeterministicReranker
+from app.rag.rerankers import get_reranker
 from app.rag.sqlite_vector_store import SqliteVectorStore, build_provider_key
 from app.schemas.rag import RagChunkRead, RagSearchChunk
 
@@ -24,7 +24,10 @@ class HybridRetriever:
             device=getattr(settings, "rag_sentence_transformers_device", "auto"),
             batch_size=getattr(settings, "rag_embedding_batch_size", 32),
         )
-        self.reranker = DeterministicReranker()
+        self.reranker, self.rerank_provider = get_reranker(
+            getattr(settings, "rag_rerank_provider", "deterministic"),
+            model_name=getattr(settings, "rag_cross_encoder_model", None),
+        )
         self.vector_store = self._build_vector_store()
 
     def _build_vector_store(self):
@@ -94,6 +97,7 @@ class HybridRetriever:
             "dense_candidate_count": len(dense_pairs),
             "fused_candidate_count": len(merged),
             "rerank_enabled": self.settings.rag_rerank_enabled,
+            "rerank_provider": self.rerank_provider if self.settings.rag_rerank_enabled else None,
             "rrf_k": self.settings.rag_rrf_k,
             "vector_store": self.vector_store.name if self.vector_store else "none",
             "embedding_cache": embedding_cache,
