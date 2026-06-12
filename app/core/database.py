@@ -196,6 +196,19 @@ def init_db() -> None:
         _add_column_if_missing(conn, "rag_chunks", "index_version", "TEXT DEFAULT 'hybrid_v2'")
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS rag_embeddings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                chunk_id TEXT NOT NULL,
+                provider_key TEXT NOT NULL,
+                dim INTEGER NOT NULL,
+                vector_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                UNIQUE(chunk_id, provider_key)
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS context_packs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 context_pack_id TEXT NOT NULL UNIQUE,
