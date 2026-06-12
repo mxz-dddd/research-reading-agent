@@ -6,6 +6,7 @@ from uuid import uuid4
 from fastapi import HTTPException
 
 from app.core.config import settings
+from app.rag.answer_synthesis import LLMAnswerSynthesizer
 from app.rag.chunking import ContextualChunker
 from app.rag.retrievers import HybridRetriever
 from app.repositories.paper_repo import PaperRepository
@@ -34,6 +35,7 @@ class RagService:
         self.rag_repo = RagChunkRepository()
         self.trace_repo = RagTraceRepository()
         self.context_service = ContextService()
+        self.answer_synthesizer = LLMAnswerSynthesizer()
 
     def index_paper_for_rag(
         self,
@@ -242,18 +244,101 @@ class RagService:
                 context_pack_id=search_result.context_pack_id,
                 context_pack=search_result.context_pack,
                 pipeline=search_result.pipeline,
+                answer_mode="refusal_no_evidence",
             )
 
+        answer, answer_mode, answer_model, citations = self._build_answer(
+            query=query,
+            mode=mode,
+            warning=warning,
+            evidence_chunks=search_result.evidence_chunks,
+        )
+        trace_id = None
+        trace_warning = None
+        if save_trace:
+            trace_id, trace_warning = self._save_trace(
+                query=query,
+                mode="answer",
+                paper_id=paper_id,
+                top_k=top_k,
+                evidence_chunks=search_result.evidence_chunks,
+                answer=answer,
+                metadata={
+                    "source": "rag_answer",
+                    "warning": warning,
+                    "score_summary": self._score_summary(search_result.evidence_chunks),
+                    "pipeline": search_result.pipeline,
+                    "context_pack_id": search_result.context_pack_id,
+                    "retrieval_mode": mode,
+                    "answer_mode": answer_mode,
+                    "answer_model": answer_model,
+                    "citations": citations,
+                },
+            )
+
+        return RagAnswerResponse(
+            success=True,
+            query=query,
+            answer=answer,
+            evidence_chunks=search_result.evidence_chunks,
+            warning=warning,
+            no_evidence=False,
+            error=None,
+            trace_id=trace_id,
+            trace_warning=trace_warning,
+            retrieval_mode=mode,
+            context_pack_id=search_result.context_pack_id,
+            context_pack=search_result.context_pack,
+            pipeline=search_result.pipeline,
+            answer_mode=answer_mode,
+            answer_model=answer_model,
+            citations=citations,
+        )
+
+    def _build_answer(
+        self,
+        *,
+        query: str,
+        mode: str,
+        warning: str,
+        evidence_chunks: list[RagSearchChunk],
+    ) -> tuple[str, str, str | None, dict[str, Any] | None]:
+        """Use citation-aware LLM synthesis when configured, otherwise keep the template answer."""
+        answer_mode = "template"
+        citations: dict[str, Any] | None = None
+        if self.answer_synthesizer.should_use_llm():
+            result = self.answer_synthesizer.synthesize(
+                query=query,
+                evidence_chunks=evidence_chunks,
+            )
+            if result is None:
+                answer_mode = "template_fallback_llm_error"
+            elif result["valid"]:
+                return result["answer"], "llm", result["model"], result["citations"]
+            else:
+                answer_mode = "template_fallback_invalid_citations"
+                citations = result["citations"]
+        return (
+            self._template_answer(mode=mode, warning=warning, evidence_chunks=evidence_chunks),
+            answer_mode,
+            None,
+            citations,
+        )
+
+    def _template_answer(
+        self,
+        *,
+        mode: str,
+        warning: str,
+        evidence_chunks: list[RagSearchChunk],
+    ) -> str:
         intro = (
             "以下回答基于 contextual hybrid RAG 检索到的 evidence："
             if mode == "hybrid"
             else "以下回答基于已索引论文片段："
         )
-        lines = [
-            intro,
-            "命中的 evidence 主要包括：",
-        ]
-        for index, chunk in enumerate(search_result.evidence_chunks, start=1):
+        lines = [intro, "命中的 evidence 主要包括："]
+        for index, chunk in enumerate(evidence_chunks, start=1):
             terms = ", ".join(chunk.matched_terms) if chunk.matched_terms else "未记录命中词"
             retrieval_scores = ", ".join(
                 f"{key}={value:.4f}" for key, value in chunk.retrieval_scores.items()
@@ -272,42 +357,7 @@ class RagService:
                 warning,
             ]
         )
-        answer = "\n".join(lines)
-        trace_id = None
-        trace_warning = None
-        if save_trace:
-            trace_id, trace_warning = self._save_trace(
-                query=query,
-                mode="answer",
-                paper_id=paper_id,
-                top_k=top_k,
-                evidence_chunks=search_result.evidence_chunks,
-                answer=answer,
-                metadata={
-                    "source": "rag_answer",
-                    "warning": warning,
-                    "score_summary": self._score_summary(search_result.evidence_chunks),
-                    "pipeline": search_result.pipeline,
-                    "context_pack_id": search_result.context_pack_id,
-                    "retrieval_mode": mode,
-                },
-            )
-
-        return RagAnswerResponse(
-            success=True,
-            query=query,
-            answer=answer,
-            evidence_chunks=search_result.evidence_chunks,
-            warning=warning,
-            no_evidence=False,
-            error=None,
-            trace_id=trace_id,
-            trace_warning=trace_warning,
-            retrieval_mode=mode,
-            context_pack_id=search_result.context_pack_id,
-            context_pack=search_result.context_pack,
-            pipeline=search_result.pipeline,
-        )
+        return "\n".join(lines)
 
     def get_latest_traces(self, limit: int = 10) -> list[RagTraceRead]:
         return self.trace_repo.get_latest(limit=limit)

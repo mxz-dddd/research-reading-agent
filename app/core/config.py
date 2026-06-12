@@ -8,6 +8,7 @@ class Settings:
     database_path: str = os.getenv("DATABASE_PATH", "data/research_agent.db")
     openai_api_key: str | None = os.getenv("OPENAI_API_KEY")
     openai_model: str = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
+    openai_base_url: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
     feishu_app_id: str | None = os.getenv("FEISHU_APP_ID")
     feishu_app_secret: str | None = os.getenv("FEISHU_APP_SECRET")
     feishu_verification_token: str | None = os.getenv("FEISHU_VERIFICATION_TOKEN")
@@ -28,6 +29,8 @@ class Settings:
     rag_rrf_k: int = int(os.getenv("RAG_RRF_K", "60"))
     rag_rerank_enabled: bool = os.getenv("RAG_RERANK_ENABLED", "true").lower() == "true"
     rag_context_token_budget: int = int(os.getenv("RAG_CONTEXT_TOKEN_BUDGET", "6000"))
+    # auto 仅在配置 API key 时启用 LLM；否则保留确定性模板回答。
+    rag_answer_mode: str = os.getenv("RAG_ANSWER_MODE", "auto")
 
 
 settings = Settings()
