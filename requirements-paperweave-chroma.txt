@@ -1,0 +1,2 @@
+# Optional PaperWeave Chroma vector-store adapter.
+chromadb>=0.5.0
