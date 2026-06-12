@@ -41,6 +41,11 @@ class Settings:
     rag_chroma_persist_directory: str = os.getenv(
         "RAG_CHROMA_PERSIST_DIRECTORY", "data/chroma"
     )
+    # Multi-step Agent is opt-in; the existing single-step route remains the default.
+    agent_multi_step_enabled: bool = (
+        os.getenv("AGENT_MULTI_STEP_ENABLED", "false").lower() == "true"
+    )
+    agent_max_steps: int = int(os.getenv("AGENT_MAX_STEPS", "3"))
 
 
 settings = Settings()
