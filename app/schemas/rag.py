@@ -119,6 +119,9 @@ class RagAnswerResponse(BaseModel):
     context_pack_id: str | None = None
     context_pack: dict[str, Any] | None = None
     pipeline: dict[str, Any] = {}
+    answer_mode: str | None = None
+    answer_model: str | None = None
+    citations: dict[str, Any] | None = None
 
 
 class RagTraceCreate(BaseModel):
