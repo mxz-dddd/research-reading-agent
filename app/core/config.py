@@ -28,6 +28,11 @@ class Settings:
     rag_embedding_batch_size: int = int(os.getenv("RAG_EMBEDDING_BATCH_SIZE", "32"))
     rag_rrf_k: int = int(os.getenv("RAG_RRF_K", "60"))
     rag_rerank_enabled: bool = os.getenv("RAG_RERANK_ENABLED", "true").lower() == "true"
+    rag_rerank_provider: str = os.getenv("RAG_RERANK_PROVIDER", "deterministic")
+    rag_cross_encoder_model: str = os.getenv(
+        "RAG_CROSS_ENCODER_MODEL",
+        "cross-encoder/ms-marco-MiniLM-L-6-v2",
+    )
     rag_context_token_budget: int = int(os.getenv("RAG_CONTEXT_TOKEN_BUDGET", "6000"))
     # auto 仅在配置 API key 时启用 LLM；否则保留确定性模板回答。
     rag_answer_mode: str = os.getenv("RAG_ANSWER_MODE", "auto")

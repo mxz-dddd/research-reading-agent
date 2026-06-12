@@ -1,0 +1,2 @@
+# Optional PaperWeave cross-encoder reranker.
+sentence-transformers>=3.0.0

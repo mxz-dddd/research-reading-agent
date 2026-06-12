@@ -1,5 +1,7 @@
+import importlib
 import re
 
+from app.core.config import settings
 from app.schemas.rag import RagSearchChunk
 
 
@@ -34,3 +36,44 @@ class DeterministicReranker:
             reranked.append(chunk)
         reranked.sort(key=lambda item: (item.rerank_score or 0.0, item.score, item.chunk_id), reverse=True)
         return reranked
+
+
+class CrossEncoderReranker:
+    """Optional cross-encoder reranker loaded only when explicitly selected."""
+
+    def __init__(self, model_name: str | None = None) -> None:
+        self.model_name = model_name or settings.rag_cross_encoder_model
+        try:
+            module = importlib.import_module("sentence_transformers")
+        except ImportError as exc:
+            raise RuntimeError(
+                "sentence-transformers is not installed. Install the optional dependency with: "
+                "pip install -r requirements-paperweave-reranker.txt"
+            ) from exc
+        self.model = module.CrossEncoder(self.model_name)
+
+    def rerank(self, query: str, chunks: list[RagSearchChunk]) -> list[RagSearchChunk]:
+        if not chunks:
+            return chunks
+        scores = self.model.predict([(query, chunk.content) for chunk in chunks])
+        for chunk, score in zip(chunks, scores):
+            value = float(score)
+            chunk.rerank_score = round(value, 6)
+            detail = f"cross-encoder({self.model_name}) score={value:.4f}"
+            chunk.score_reason = (
+                f"{chunk.score_reason}；{detail}" if chunk.score_reason else detail
+            )
+        chunks.sort(
+            key=lambda item: (item.rerank_score or 0.0, item.score, item.chunk_id),
+            reverse=True,
+        )
+        return chunks
+
+
+def get_reranker(provider: str | None = None, model_name: str | None = None):
+    provider_name = (provider or "deterministic").strip().lower().replace("_", "-")
+    if provider_name == "cross-encoder":
+        return CrossEncoderReranker(model_name=model_name), "cross-encoder"
+    if provider_name == "deterministic":
+        return DeterministicReranker(), "deterministic"
+    raise ValueError(f"Unsupported reranker provider: {provider}")
