@@ -25,11 +25,23 @@ class HybridRetriever:
             batch_size=getattr(settings, "rag_embedding_batch_size", 32),
         )
         self.reranker = DeterministicReranker()
-        self.vector_store = (
-            SqliteVectorStore()
-            if getattr(settings, "rag_vector_store", "none").strip().lower() == "sqlite"
-            else None
-        )
+        self.vector_store = self._build_vector_store()
+
+    def _build_vector_store(self):
+        store_name = getattr(self.settings, "rag_vector_store", "none").strip().lower()
+        if store_name == "sqlite":
+            return SqliteVectorStore()
+        if store_name == "chroma":
+            from app.rag.chroma_vector_store import ChromaVectorStore
+
+            return ChromaVectorStore(
+                persist_directory=getattr(
+                    self.settings,
+                    "rag_chroma_persist_directory",
+                    "data/chroma",
+                )
+            )
+        return None
 
     def search(
         self,

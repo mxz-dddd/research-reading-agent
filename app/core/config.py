@@ -33,6 +33,9 @@ class Settings:
     rag_answer_mode: str = os.getenv("RAG_ANSWER_MODE", "auto")
     # none 保留原有即时计算行为；sqlite 显式启用本地 embedding 缓存。
     rag_vector_store: str = os.getenv("RAG_VECTOR_STORE", "none")
+    rag_chroma_persist_directory: str = os.getenv(
+        "RAG_CHROMA_PERSIST_DIRECTORY", "data/chroma"
+    )
 
 
 settings = Settings()
