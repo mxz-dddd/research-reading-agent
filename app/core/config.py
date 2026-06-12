@@ -31,6 +31,8 @@ class Settings:
     rag_context_token_budget: int = int(os.getenv("RAG_CONTEXT_TOKEN_BUDGET", "6000"))
     # auto 仅在配置 API key 时启用 LLM；否则保留确定性模板回答。
     rag_answer_mode: str = os.getenv("RAG_ANSWER_MODE", "auto")
+    # none 保留原有即时计算行为；sqlite 显式启用本地 embedding 缓存。
+    rag_vector_store: str = os.getenv("RAG_VECTOR_STORE", "none")
 
 
 settings = Settings()

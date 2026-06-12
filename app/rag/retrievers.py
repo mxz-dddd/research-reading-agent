@@ -1,6 +1,7 @@
 from app.rag.embeddings import cosine_similarity, get_embedding_provider
 from app.rag.fusion import reciprocal_rank_fusion
 from app.rag.rerankers import DeterministicReranker
+from app.rag.sqlite_vector_store import SqliteVectorStore, build_provider_key
 from app.schemas.rag import RagChunkRead, RagSearchChunk
 
 
@@ -24,6 +25,11 @@ class HybridRetriever:
             batch_size=getattr(settings, "rag_embedding_batch_size", 32),
         )
         self.reranker = DeterministicReranker()
+        self.vector_store = (
+            SqliteVectorStore()
+            if getattr(settings, "rag_vector_store", "none").strip().lower() == "sqlite"
+            else None
+        )
 
     def search(
         self,
@@ -34,7 +40,9 @@ class HybridRetriever:
         candidate_k = max(top_k * 4, 20)
         sparse_chunks = self.rag_repo.search_chunks(query, top_k=candidate_k, paper_id=paper_id)
         all_chunks = self.rag_repo.list_all_chunks(paper_id=paper_id)
-        dense_pairs = self._dense_candidates(query=query, chunks=all_chunks, limit=candidate_k)
+        dense_pairs, embedding_cache = self._dense_candidates(
+            query=query, chunks=all_chunks, limit=candidate_k
+        )
         dense_scores = {chunk.chunk_id: score for chunk, score in dense_pairs}
         provider_metadata = self.embedding_provider.metadata()
 
@@ -75,6 +83,8 @@ class HybridRetriever:
             "fused_candidate_count": len(merged),
             "rerank_enabled": self.settings.rag_rerank_enabled,
             "rrf_k": self.settings.rag_rrf_k,
+            "vector_store": self.vector_store.name if self.vector_store else "none",
+            "embedding_cache": embedding_cache,
         }
         pipeline.update(provider_metadata)
         return merged[:top_k], pipeline
@@ -85,21 +95,58 @@ class HybridRetriever:
         query: str,
         chunks: list[RagChunkRead],
         limit: int,
-    ) -> list[tuple[RagChunkRead, float]]:
+    ) -> tuple[list[tuple[RagChunkRead, float]], dict]:
         query_vec = self.embedding_provider.embed_text(query)
-        texts = [chunk.content_for_embedding or chunk.content for chunk in chunks]
-        embed_texts = getattr(self.embedding_provider, "embed_texts", None)
-        if callable(embed_texts):
-            chunk_vectors = embed_texts(texts)
-        else:
-            chunk_vectors = [self.embedding_provider.embed_text(text) for text in texts]
+        chunk_vectors, cache_stats = self._chunk_vectors(chunks)
         scored: list[tuple[RagChunkRead, float]] = []
-        for chunk, chunk_vec in zip(chunks, chunk_vectors):
+        for chunk in chunks:
+            chunk_vec = chunk_vectors.get(chunk.chunk_id)
+            if not chunk_vec:
+                continue
             score = cosine_similarity(query_vec, chunk_vec)
             if score > 0:
                 scored.append((chunk, score))
         scored.sort(key=lambda item: (item[1], item[0].chunk_id), reverse=True)
-        return scored[:limit]
+        return scored[:limit], cache_stats
+
+    def _chunk_vectors(self, chunks: list[RagChunkRead]) -> tuple[dict[str, list[float]], dict]:
+        provider_key = build_provider_key(self.embedding_provider.metadata())
+        stored: dict[str, list[float]] = {}
+        store_error: str | None = None
+        if self.vector_store:
+            try:
+                stored = self.vector_store.get_vectors(
+                    [chunk.chunk_id for chunk in chunks], provider_key
+                )
+            except Exception as exc:
+                store_error = f"vector store read failed: {exc}"
+
+        missing = [chunk for chunk in chunks if chunk.chunk_id not in stored]
+        if missing:
+            texts = [chunk.content_for_embedding or chunk.content for chunk in missing]
+            embed_texts = getattr(self.embedding_provider, "embed_texts", None)
+            vectors = (
+                embed_texts(texts)
+                if callable(embed_texts)
+                else [self.embedding_provider.embed_text(text) for text in texts]
+            )
+            new_items = [(chunk.chunk_id, vector) for chunk, vector in zip(missing, vectors)]
+            stored.update(dict(new_items))
+            if self.vector_store and store_error is None:
+                try:
+                    self.vector_store.upsert_vectors(provider_key, new_items)
+                except Exception as exc:
+                    store_error = f"vector store write failed: {exc}"
+
+        cache_stats = {
+            "provider_key": provider_key,
+            "total_chunks": len(chunks),
+            "cache_hits": len(chunks) - len(missing) if self.vector_store else 0,
+            "computed": len(missing),
+        }
+        if store_error:
+            cache_stats["store_error"] = store_error
+        return stored, cache_stats
 
     def _read_to_search_chunk(
         self,
