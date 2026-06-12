@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from app.agent.answer_builder import build_final_answer
 from app.agent.argument_resolver import resolve_arguments
 from app.agent.fallback_router import route_with_fallback
+from app.agent.multi_step import MultiStepOrchestrator
 from app.agent.prompts import AGENT_ROUTER_PROMPT
 from app.agent.tool_registry import ToolRegistry
 from app.core.config import settings
@@ -24,6 +25,13 @@ class AgentOrchestrator:
 
     def query(self, payload: AgentQueryRequest) -> AgentQueryResponse:
         message = payload.text
+        if getattr(settings, "agent_multi_step_enabled", False):
+            response = MultiStepOrchestrator(
+                registry=self.registry,
+                session_repo=self.session_repo,
+            ).run(payload, tool_schemas=self._openai_tools())
+            if response is not None:
+                return response
         route = self._route_with_llm(message)
         routing_method = "llm"
         if route is None:
