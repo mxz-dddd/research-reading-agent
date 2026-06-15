@@ -1,7 +1,7 @@
 import asyncio
 
 from app.services.agent_service import AgentService
-from app.services.tool_mux import ToolMux, ToolRegistry
+from app.services.tool_mux import ToolMux, MuxToolRegistry
 
 
 def run(coro):
@@ -11,7 +11,7 @@ def run(coro):
 def test_agent_service_exposes_tool_mux_parallel_entrypoint() -> None:
     service = AgentService()
 
-    registry = ToolRegistry()
+    registry = MuxToolRegistry()
     registry.register("ok", lambda x: {"x": x}, read_only=True)
     service.tool_mux = ToolMux(registry=registry)
 

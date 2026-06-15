@@ -1,4 +1,5 @@
 import json
+import logging
 import ssl
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -16,6 +17,8 @@ from app.agent.tool_registry import ToolRegistry
 from app.core.config import settings
 from app.repositories.session_repo import SessionStateRepository
 from app.schemas.agent import AgentQueryRequest, AgentQueryResponse, AgentToolCall
+
+logger = logging.getLogger(__name__)
 
 
 class AgentOrchestrator:
@@ -117,7 +120,13 @@ class AgentOrchestrator:
             with urlopen(request, timeout=45, context=self._ssl_context()) as response:
                 data = json.loads(response.read().decode("utf-8"))
             return self._extract_function_call(data)
-        except (HTTPError, URLError, TimeoutError, json.JSONDecodeError, KeyError, TypeError, ValueError):
+        except (HTTPError, URLError, TimeoutError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+            # 不再完全静默：LLM 路由失败时记录可见日志，再降级到规则路由。
+            logger.warning(
+                "LLM routing failed, falling back to rule-based router (model=%s): %s",
+                settings.openai_model,
+                exc,
+            )
             return None
 
     def _extract_function_call(self, data: dict[str, Any]) -> dict[str, Any] | None:
@@ -155,60 +164,8 @@ class AgentOrchestrator:
         )
 
     def _openai_tools(self) -> list[dict[str, Any]]:
-        return [
-            self._tool_schema("search_papers", {"topic": "string", "max_results": "integer"}),
-            self._tool_schema("accept_paper", {"paper_id": "integer", "ordinal": "integer"}),
-            self._tool_schema("ingest_paper", {"paper_id": "integer", "ordinal": "integer"}),
-            self._tool_schema("list_accepted_papers", {}),
-            self._tool_schema("get_paper_detail", {"paper_id": "integer", "ordinal": "integer"}),
-            self._tool_schema("generate_knowledge", {"topic": "string"}),
-            self._tool_schema("generate_innovation", {"topic": "string"}),
-            self._tool_schema(
-                "run_research_workflow",
-                {
-                    "topic": "string",
-                    "max_results": "integer",
-                    "accept_top_k": "integer",
-                    "dry_run": "boolean",
-                    "index_rag": "boolean",
-                    "rag_chunk_size": "integer",
-                    "rag_chunk_overlap": "integer",
-                },
-            ),
-            self._tool_schema("get_latest_workflow", {}),
-            self._tool_schema("list_workflow_history", {"limit": "integer"}),
-            self._tool_schema("get_workflow_detail", {"run_id": "string"}),
-            self._tool_schema("generate_workflow_report", {"run_id": "string"}),
-            self._tool_schema("get_workflow_report", {"run_id": "string"}),
-            self._tool_schema("index_paper_rag", {"paper_id": "integer", "ordinal": "integer"}),
-            self._tool_schema("rag_search", {"query": "string", "top_k": "integer", "paper_id": "integer", "ordinal": "integer", "retrieval_mode": "string"}),
-            self._tool_schema("rag_answer", {"query": "string", "top_k": "integer", "paper_id": "integer", "ordinal": "integer", "retrieval_mode": "string"}),
-            self._tool_schema("get_latest_rag_traces", {"limit": "integer"}),
-            self._tool_schema("get_rag_trace_detail", {"trace_id": "string"}),
-            self._tool_schema("get_rag_traces_by_paper", {"paper_id": "integer", "ordinal": "integer", "limit": "integer"}),
-            self._tool_schema("add_rag_trace_feedback", {"trace_id": "string", "relevance_label": "string", "expected_terms": "array", "notes": "string"}),
-            self._tool_schema("get_rag_evaluation_summary", {}),
-            self._tool_schema("get_rag_trace_evaluation_detail", {"trace_id": "string"}),
-            self._tool_schema("add_rag_evidence_feedback", {"trace_id": "string", "chunk_id": "string", "rank": "integer", "relevance_score": "integer", "notes": "string"}),
-            self._tool_schema("get_rag_evidence_evaluation_summary", {"trace_id": "string"}),
-            self._tool_schema("get_rag_trace_evidence_evaluation", {"trace_id": "string"}),
-            self._tool_schema("help", {}),
-        ]
-
-    def _tool_schema(self, name: str, properties: dict[str, str]) -> dict[str, Any]:
-        return {
-            "type": "function",
-            "name": name,
-            "description": f"调用 {name} 工具",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    key: {"type": value}
-                    for key, value in properties.items()
-                },
-                "additionalProperties": False,
-            },
-        }
+        # 单一事实源：直接由 ToolRegistry 派生，避免与已注册工具集漂移。
+        return self.registry.openai_tool_schemas()
 
     def _ssl_context(self) -> ssl.SSLContext:
         return ssl.create_default_context(cafile=certifi.where())

@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.services.tool_mux import ToolMux, ToolRegistry
+from app.services.tool_mux import MuxToolRegistry, ToolMux
 
 
 def search_papers(topic: str, max_results: int = 5) -> list[dict[str, object]]:
@@ -40,7 +40,7 @@ def broken_tool() -> None:
 
 
 async def main() -> None:
-    registry = ToolRegistry()
+    registry = MuxToolRegistry()
     registry.register("search_papers", search_papers, "模拟搜索论文")
     registry.register("list_accepted_papers", list_accepted_papers, "模拟列出已接收论文")
     registry.register("accept_paper", accept_paper, "模拟接收论文")

@@ -1,6 +1,6 @@
 import asyncio
 
-from app.services.tool_mux import ToolMux, ToolRegistry
+from app.services.tool_mux import ToolMux, MuxToolRegistry
 
 
 def run(coro):
@@ -8,7 +8,7 @@ def run(coro):
 
 
 def test_call_success() -> None:
-    registry = ToolRegistry()
+    registry = MuxToolRegistry()
     registry.register("get_fake", lambda value: {"value": value}, read_only=True)
     mux = ToolMux(registry=registry)
 
@@ -19,7 +19,7 @@ def test_call_success() -> None:
 
 
 def test_unknown_tool_returns_error() -> None:
-    mux = ToolMux(registry=ToolRegistry())
+    mux = ToolMux(registry=MuxToolRegistry())
 
     result = run(mux.call("not_exists", {}))
 
@@ -28,7 +28,7 @@ def test_unknown_tool_returns_error() -> None:
 
 
 def test_parallel_partial_failure() -> None:
-    registry = ToolRegistry()
+    registry = MuxToolRegistry()
     registry.register("ok", lambda value: value, read_only=True)
 
     def broken_tool() -> None:
@@ -54,7 +54,7 @@ def test_parallel_partial_failure() -> None:
 
 
 def test_parallel_invalid_calls_are_wrapped() -> None:
-    registry = ToolRegistry()
+    registry = MuxToolRegistry()
     registry.register("ok", lambda: "ok", read_only=True)
     mux = ToolMux(registry=registry)
 
@@ -74,7 +74,7 @@ def test_parallel_invalid_calls_are_wrapped() -> None:
 
 
 def test_read_only_cache_hit() -> None:
-    registry = ToolRegistry()
+    registry = MuxToolRegistry()
     calls = {"count": 0}
 
     def search_fake(topic: str) -> dict[str, object]:
@@ -94,7 +94,7 @@ def test_read_only_cache_hit() -> None:
 
 
 def test_mutating_tool_not_cached() -> None:
-    registry = ToolRegistry()
+    registry = MuxToolRegistry()
     calls = {"count": 0}
 
     def accept_fake(paper_id: int) -> dict[str, int]:
@@ -113,7 +113,7 @@ def test_mutating_tool_not_cached() -> None:
 
 
 def test_batch_uses_parallel_semantics() -> None:
-    registry = ToolRegistry()
+    registry = MuxToolRegistry()
     registry.register("get_fake", lambda value: {"value": value}, read_only=True)
     mux = ToolMux(registry=registry)
 

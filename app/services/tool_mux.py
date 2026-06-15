@@ -58,7 +58,7 @@ def infer_read_only(tool_name: str) -> bool:
     return prefix in READ_ONLY_PREFIXES
 
 
-class ToolRegistry:
+class MuxToolRegistry:
     def __init__(self) -> None:
         self._tools: dict[str, ToolDefinition] = {}
 
@@ -188,13 +188,13 @@ class ToolCache:
 class ToolMux:
     def __init__(
         self,
-        registry: ToolRegistry | None = None,
+        registry: MuxToolRegistry | None = None,
         cache: ToolCache | None = None,
         max_concurrency: int = 5,
     ) -> None:
         if max_concurrency < 1:
             raise ValueError("max_concurrency must be >= 1")
-        self.registry = registry or ToolRegistry()
+        self.registry = registry or MuxToolRegistry()
         self.cache = cache or ToolCache()
         self.max_concurrency = max_concurrency
         self._sync_cache_policy()

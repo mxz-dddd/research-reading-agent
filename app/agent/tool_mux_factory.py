@@ -1,5 +1,5 @@
 from app.agent.tool_registry import ToolRegistry as ResearchToolRegistry
-from app.services.tool_mux import ToolCache, ToolMux, ToolRegistry
+from app.services.tool_mux import MuxToolRegistry, ToolCache, ToolMux
 
 
 def build_research_tool_mux(
@@ -9,7 +9,7 @@ def build_research_tool_mux(
     max_concurrency: int = 5,
 ) -> ToolMux:
     research_tools = ResearchToolRegistry()
-    registry = ToolRegistry()
+    registry = MuxToolRegistry()
 
     registry.register(
         "search_papers",

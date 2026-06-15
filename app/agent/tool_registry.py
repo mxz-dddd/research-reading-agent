@@ -14,6 +14,84 @@ from app.services.research_workflow_service import ResearchWorkflowService
 from app.services.workflow_report_service import WorkflowReportService
 
 
+# 工具的 LLM 面向参数 schema：单一事实源。
+# 注意这是“给 LLM 看”的参数（例如包含 ordinal，由 argument_resolver 解析为 paper_id），
+# 与实际 callable 签名可以不同，因此显式声明而非从函数签名反射。
+TOOL_PARAMETER_SCHEMAS: dict[str, dict[str, str]] = {
+    "search_papers": {"topic": "string", "max_results": "integer"},
+    "accept_paper": {"paper_id": "integer", "ordinal": "integer"},
+    "ingest_paper": {"paper_id": "integer", "ordinal": "integer"},
+    "list_accepted_papers": {},
+    "get_paper_detail": {"paper_id": "integer", "ordinal": "integer"},
+    "generate_knowledge": {"topic": "string"},
+    "generate_innovation": {"topic": "string"},
+    "run_research_workflow": {
+        "topic": "string",
+        "max_results": "integer",
+        "accept_top_k": "integer",
+        "dry_run": "boolean",
+        "index_rag": "boolean",
+        "rag_chunk_size": "integer",
+        "rag_chunk_overlap": "integer",
+    },
+    "get_latest_workflow": {},
+    "list_workflow_history": {"limit": "integer"},
+    "get_workflow_detail": {"run_id": "string"},
+    "generate_workflow_report": {"run_id": "string"},
+    "get_workflow_report": {"run_id": "string"},
+    "index_paper_rag": {"paper_id": "integer", "ordinal": "integer"},
+    "rag_search": {
+        "query": "string",
+        "top_k": "integer",
+        "paper_id": "integer",
+        "ordinal": "integer",
+        "retrieval_mode": "string",
+    },
+    "rag_answer": {
+        "query": "string",
+        "top_k": "integer",
+        "paper_id": "integer",
+        "ordinal": "integer",
+        "retrieval_mode": "string",
+    },
+    "get_latest_rag_traces": {"limit": "integer"},
+    "get_rag_trace_detail": {"trace_id": "string"},
+    "get_rag_traces_by_paper": {"paper_id": "integer", "ordinal": "integer", "limit": "integer"},
+    "add_rag_trace_feedback": {
+        "trace_id": "string",
+        "relevance_label": "string",
+        "expected_terms": "array",
+        "notes": "string",
+    },
+    "get_rag_evaluation_summary": {},
+    "get_rag_trace_evaluation_detail": {"trace_id": "string"},
+    "add_rag_evidence_feedback": {
+        "trace_id": "string",
+        "chunk_id": "string",
+        "rank": "integer",
+        "relevance_score": "integer",
+        "notes": "string",
+    },
+    "get_rag_evidence_evaluation_summary": {"trace_id": "string"},
+    "get_rag_trace_evidence_evaluation": {"trace_id": "string"},
+    "help": {},
+}
+
+
+def build_openai_tool_schema(name: str, properties: dict[str, str]) -> dict[str, Any]:
+    """构造 Responses API 风格的 function tool 定义。"""
+    return {
+        "type": "function",
+        "name": name,
+        "description": f"调用 {name} 工具",
+        "parameters": {
+            "type": "object",
+            "properties": {key: {"type": value} for key, value in properties.items()},
+            "additionalProperties": False,
+        },
+    }
+
+
 class ToolRegistry:
     def __init__(self) -> None:
         self.paper_service = PaperService()
@@ -57,6 +135,19 @@ class ToolRegistry:
         if tool_name not in self.tools:
             raise ValueError(f"未知工具：{tool_name}")
         return self.tools[tool_name](**kwargs)
+
+    def openai_tool_schemas(self) -> list[dict[str, Any]]:
+        """从注册表派生 LLM 工具 schema，保证 schema 集合与已注册工具不漂移。"""
+        missing = [name for name in self.tools if name not in TOOL_PARAMETER_SCHEMAS]
+        if missing:
+            raise ValueError(f"以下已注册工具缺少 LLM 参数 schema：{missing}")
+        extra = [name for name in TOOL_PARAMETER_SCHEMAS if name not in self.tools]
+        if extra:
+            raise ValueError(f"以下参数 schema 对应的工具未注册：{extra}")
+        return [
+            build_openai_tool_schema(name, TOOL_PARAMETER_SCHEMAS[name])
+            for name in self.tools
+        ]
 
     def search_papers(
         self,
