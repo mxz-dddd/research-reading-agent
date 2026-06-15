@@ -11,6 +11,10 @@ def get_connection() -> sqlite3.Connection:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
+    # WAL 提升并发读（读写不互斥）；busy_timeout 避免瞬时锁直接报错。
+    # 不开启 foreign_keys 强制，以免影响现有插入顺序与既有数据。
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
     return conn
 
 
@@ -271,4 +275,27 @@ def init_db() -> None:
             )
             """
         )
+        _create_indexes(conn)
         conn.commit()
+
+
+def _create_indexes(conn: sqlite3.Connection) -> None:
+    """为高频过滤/排序列建立索引，避免随数据增长退化为全表扫描。"""
+    index_statements = (
+        # 检索按 paper_id 过滤（list_all_chunks / search_chunks / list_chunks_by_paper_id）
+        "CREATE INDEX IF NOT EXISTS idx_rag_chunks_paper_id ON rag_chunks(paper_id)",
+        # trace 按论文查询与按时间倒序列出
+        "CREATE INDEX IF NOT EXISTS idx_rag_traces_paper_id ON rag_traces(paper_id)",
+        "CREATE INDEX IF NOT EXISTS idx_rag_traces_created_at ON rag_traces(created_at)",
+        # feedback 按 trace_id 聚合
+        "CREATE INDEX IF NOT EXISTS idx_rag_trace_feedback_trace_id ON rag_trace_feedback(trace_id)",
+        "CREATE INDEX IF NOT EXISTS idx_rag_evidence_feedback_trace_id ON rag_evidence_feedback(trace_id)",
+        # workflow 历史按时间倒序列出 / latest
+        "CREATE INDEX IF NOT EXISTS idx_workflow_runs_created_at ON workflow_runs(created_at)",
+        # context pack 按 user/session 最近列表查询
+        "CREATE INDEX IF NOT EXISTS idx_context_packs_user_session ON context_packs(user_id, session_id, created_at)",
+        # 论文列表常按接收状态过滤
+        "CREATE INDEX IF NOT EXISTS idx_papers_is_accepted ON papers(is_accepted)",
+    )
+    for statement in index_statements:
+        conn.execute(statement)

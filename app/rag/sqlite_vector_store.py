@@ -1,5 +1,6 @@
 """Optional SQLite-backed embedding cache for PaperWeave."""
 
+from contextlib import closing
 from datetime import datetime, timezone
 import json
 from typing import Any
@@ -14,7 +15,7 @@ class SqliteVectorStore:
         if not chunk_ids:
             return {}
         result: dict[str, list[float]] = {}
-        with get_connection() as conn:
+        with closing(get_connection()) as conn:
             for start in range(0, len(chunk_ids), 500):
                 batch = chunk_ids[start : start + 500]
                 placeholders = ",".join("?" for _ in batch)
@@ -40,7 +41,7 @@ class SqliteVectorStore:
         if not items:
             return
         now = datetime.now(timezone.utc).isoformat()
-        with get_connection() as conn:
+        with closing(get_connection()) as conn:
             conn.executemany(
                 """
                 INSERT INTO rag_embeddings (chunk_id, provider_key, dim, vector_json, created_at)
@@ -60,7 +61,7 @@ class SqliteVectorStore:
     def delete_by_chunk_ids(self, chunk_ids: list[str]) -> None:
         if not chunk_ids:
             return
-        with get_connection() as conn:
+        with closing(get_connection()) as conn:
             for start in range(0, len(chunk_ids), 500):
                 batch = chunk_ids[start : start + 500]
                 placeholders = ",".join("?" for _ in batch)

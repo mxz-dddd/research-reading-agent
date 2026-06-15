@@ -8,7 +8,9 @@ from fastapi import HTTPException
 from app.core.config import settings
 from app.rag.answer_synthesis import LLMAnswerSynthesizer
 from app.rag.chunking import ContextualChunker
+from app.rag.embeddings import get_embedding_provider
 from app.rag.retrievers import HybridRetriever
+from app.rag.sqlite_vector_store import SqliteVectorStore, build_provider_key
 from app.repositories.paper_repo import PaperRepository
 from app.repositories.rag_repo import RagChunkRepository
 from app.repositories.rag_trace_repo import RagTraceRepository
@@ -71,10 +73,12 @@ class RagService:
             index_version=index_version,
         )
         self.rag_repo.delete_chunks_by_paper_id(str(paper_id))
+        embed_items: list[tuple[str, str]] = []
         for index, chunk in enumerate(chunks):
+            chunk_id = f"paper-{paper_id}-{index}-{uuid4().hex[:8]}"
             self.rag_repo.create_chunk(
                 RagChunkCreate(
-                    chunk_id=f"paper-{paper_id}-{index}-{uuid4().hex[:8]}",
+                    chunk_id=chunk_id,
                     paper_id=str(paper_id),
                     source_type=source_type,
                     source_path=source_path,
@@ -95,6 +99,14 @@ class RagService:
                     index_version=chunk["index_version"],
                 )
             )
+            embed_items.append(
+                (chunk_id, chunk["content_for_embedding"] or chunk["content"])
+            )
+
+        # 在索引期一次性预计算并缓存 embedding，检索时只读缓存，避免每次查询全量重算。
+        precompute_warning = self._precompute_embeddings(embed_items)
+        if precompute_warning:
+            warnings.append(precompute_warning)
 
         return RagIndexResponse(
             success=True,
@@ -405,6 +417,40 @@ class RagService:
 
     def _preview(self, text: str, max_chars: int = 240) -> str:
         return text[:max_chars] + ("..." if len(text) > max_chars else "")
+
+    def _precompute_embeddings(self, items: list[tuple[str, str]]) -> str | None:
+        """索引期预计算 chunk embedding 并写入本地缓存（rag_embeddings）。
+
+        失败不影响索引结果，只会让首次检索退回即时计算，因此仅返回一条提示。
+        """
+        if not items:
+            return None
+        try:
+            provider = get_embedding_provider(
+                provider=getattr(settings, "rag_embedding_provider", "hash"),
+                dim=getattr(settings, "rag_embedding_dim", 256),
+                model_name=getattr(settings, "rag_sentence_transformers_model", None),
+                device=getattr(settings, "rag_sentence_transformers_device", "auto"),
+                batch_size=getattr(settings, "rag_embedding_batch_size", 32),
+            )
+            texts = [text for _chunk_id, text in items]
+            embed_texts = getattr(provider, "embed_texts", None)
+            vectors = (
+                embed_texts(texts)
+                if callable(embed_texts)
+                else [provider.embed_text(text) for text in texts]
+            )
+            provider_key = build_provider_key(provider.metadata())
+            SqliteVectorStore().upsert_vectors(
+                provider_key,
+                [
+                    (chunk_id, vector)
+                    for (chunk_id, _text), vector in zip(items, vectors)
+                ],
+            )
+        except Exception as exc:  # noqa: BLE001 - 预计算属于最佳努力，失败可降级
+            return f"embedding 预计算失败（不影响检索，仅首次查询较慢）：{exc}"
+        return None
 
     def _save_trace(
         self,
