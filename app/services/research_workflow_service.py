@@ -85,16 +85,11 @@ class ResearchWorkflowService:
         knowledge: dict[str, Any] | None = None
         innovation: dict[str, Any] | None = None
 
-        try:
-            papers = self.paper_service.search_and_store(
-                PaperSearchRequest(topic=topic, max_results=max_results)
-            )
-        except Exception as exc:
-            error = f"论文搜索失败：{exc}"
-            steps.append(self._step("search_papers", False, error, error=error))
+        def finalize(*, success: bool, error: str | None) -> ResearchWorkflowResponse:
+            # 统一从累积的局部状态构造并持久化响应，避免每个提前返回重复一长串字段。
             response = self._response(
                 run_id=run_id,
-                success=False,
+                success=success,
                 topic=topic,
                 steps=steps,
                 searched_papers=searched_papers,
@@ -106,7 +101,18 @@ class ResearchWorkflowService:
                 warnings=warnings,
                 error=error,
             )
-            return self._persist_response(response, max_results=max_results, accept_top_k=accept_top_k)
+            return self._persist_response(
+                response, max_results=max_results, accept_top_k=accept_top_k
+            )
+
+        try:
+            papers = self.paper_service.search_and_store(
+                PaperSearchRequest(topic=topic, max_results=max_results)
+            )
+        except Exception as exc:
+            error = f"论文搜索失败：{exc}"
+            steps.append(self._step("search_papers", False, error, error=error))
+            return finalize(success=False, error=error)
 
         searched_papers = [self._paper_summary(paper) for paper in papers]
         steps.append(
@@ -120,21 +126,7 @@ class ResearchWorkflowService:
         if not papers:
             error = "没有搜索到候选论文，workflow 已停止。"
             warnings.append(error)
-            response = self._response(
-                run_id=run_id,
-                success=False,
-                topic=topic,
-                steps=steps,
-                searched_papers=searched_papers,
-                accepted_papers=accepted_papers,
-                ingested_papers=ingested_papers,
-                rag_indexed_papers=rag_indexed_papers,
-                knowledge=knowledge,
-                innovation=innovation,
-                warnings=warnings,
-                error=error,
-            )
-            return self._persist_response(response, max_results=max_results, accept_top_k=accept_top_k)
+            return finalize(success=False, error=error)
 
         accept_errors: list[dict[str, Any]] = []
         for paper in papers[:accept_top_k]:
@@ -157,21 +149,7 @@ class ResearchWorkflowService:
         )
         if not accepted_papers:
             error = "没有论文成功接收，workflow 已停止。"
-            response = self._response(
-                run_id=run_id,
-                success=False,
-                topic=topic,
-                steps=steps,
-                searched_papers=searched_papers,
-                accepted_papers=accepted_papers,
-                ingested_papers=ingested_papers,
-                rag_indexed_papers=rag_indexed_papers,
-                knowledge=knowledge,
-                innovation=innovation,
-                warnings=warnings,
-                error=error,
-            )
-            return self._persist_response(response, max_results=max_results, accept_top_k=accept_top_k)
+            return finalize(success=False, error=error)
 
         if ingest:
             ingest_errors: list[dict[str, Any]] = []
@@ -252,21 +230,7 @@ class ResearchWorkflowService:
         else:
             steps.append(self._step("generate_innovation", True, "已跳过创新点生成。", data={"skipped": True}))
 
-        response = self._response(
-            run_id=run_id,
-            success=True,
-            topic=topic,
-            steps=steps,
-            searched_papers=searched_papers,
-            accepted_papers=accepted_papers,
-            ingested_papers=ingested_papers,
-            rag_indexed_papers=rag_indexed_papers,
-            knowledge=knowledge,
-            innovation=innovation,
-            warnings=warnings,
-            error=None,
-        )
-        return self._persist_response(response, max_results=max_results, accept_top_k=accept_top_k)
+        return finalize(success=True, error=None)
 
     def _run_dry_run_workflow(
         self,
