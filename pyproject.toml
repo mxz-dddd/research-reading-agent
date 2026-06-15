@@ -1,0 +1,22 @@
+# 仅作为工具配置文件（ruff / mypy）。
+# 刻意不声明 [build-system] / [project]，避免改变现有“requirements.txt + 直接运行”的安装方式。
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["data", "docs", ".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+# 行宽由格式化负责，避免历史长行产生大量噪声告警。
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = false
+exclude = ['^data/', '^docs/', '^tests/']

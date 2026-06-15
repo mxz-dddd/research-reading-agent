@@ -97,6 +97,12 @@ class FeishuService:
 
     def _verify_signature_if_needed(self, raw_body: bytes, headers: dict[str, str]) -> None:
         if not settings.feishu_enable_signature_check:
+            # 默认不启用以方便本地联调；生产部署应设 FEISHU_ENABLE_SIGNATURE_CHECK=true
+            # 并配置 FEISHU_ENCRYPT_KEY。此处发出可见告警，避免无声地处理未验签事件。
+            logger.warning(
+                "飞书签名校验未启用，正在处理未验签事件；"
+                "生产环境请设置 FEISHU_ENABLE_SIGNATURE_CHECK=true 并配置 FEISHU_ENCRYPT_KEY。"
+            )
             return
         if not settings.feishu_encrypt_key:
             raise HTTPException(status_code=500, detail="已启用飞书签名校验，但缺少 FEISHU_ENCRYPT_KEY")

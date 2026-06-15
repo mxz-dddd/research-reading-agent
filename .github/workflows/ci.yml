@@ -21,3 +21,22 @@ jobs:
         run: pip install -r requirements.txt
       - name: Run tests
         run: PYTHONDONTWRITEBYTECODE=1 python -m pytest -p no:cacheprovider tests
+
+  lint:
+    runs-on: ubuntu-latest
+    # 暂设为非阻塞：先让 ruff/mypy 暴露问题，待逐步清零后再改为必须通过。
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dev dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Ruff lint
+        run: ruff check .
+      - name: Ruff format check
+        run: ruff format --check .
+      - name: Mypy (app)
+        run: mypy app

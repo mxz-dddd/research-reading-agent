@@ -1,5 +1,45 @@
 import os
+import sys
 from dataclasses import dataclass
+from pathlib import Path
+
+
+def _load_dotenv() -> None:
+    """零依赖加载项目根目录的 .env 到 os.environ。
+
+    设计要点：
+    - 不引入第三方依赖；解析 KEY=VALUE，忽略空行与 # 注释，去除引号。
+    - 真实环境变量优先：已存在的 key 不会被 .env 覆盖。
+    - 运行 pytest 时跳过，保持测试不依赖本地 .env（可用 RRA_SKIP_DOTENV=1 显式关闭）。
+    - 可用 DOTENV_PATH 指定 .env 路径，默认项目根目录下的 .env。
+    """
+    if os.getenv("RRA_SKIP_DOTENV", "").lower() in {"1", "true", "yes"}:
+        return
+    if "pytest" in sys.modules:
+        return
+    dotenv_path = os.getenv("DOTENV_PATH")
+    path = Path(dotenv_path) if dotenv_path else Path(__file__).resolve().parents[2] / ".env"
+    if not path.is_file():
+        return
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError:
+        return
+    for line in raw.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, _, value = stripped.partition("=")
+        key = key.strip()
+        if key.startswith("export "):
+            key = key[len("export "):].strip()
+        if not key or key in os.environ:
+            continue
+        value = value.strip().strip('"').strip("'")
+        os.environ[key] = value
+
+
+_load_dotenv()
 
 
 @dataclass(frozen=True)
@@ -7,7 +47,8 @@ class Settings:
     app_name: str = os.getenv("APP_NAME", "Research Agent")
     database_path: str = os.getenv("DATABASE_PATH", "data/research_agent.db")
     openai_api_key: str | None = os.getenv("OPENAI_API_KEY")
-    openai_model: str = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
+    # 默认使用真实存在、支持 Responses/Chat API 的模型；可用 OPENAI_MODEL 覆盖。
+    openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     openai_base_url: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
     feishu_app_id: str | None = os.getenv("FEISHU_APP_ID")
     feishu_app_secret: str | None = os.getenv("FEISHU_APP_SECRET")
@@ -36,8 +77,9 @@ class Settings:
     rag_context_token_budget: int = int(os.getenv("RAG_CONTEXT_TOKEN_BUDGET", "6000"))
     # auto 仅在配置 API key 时启用 LLM；否则保留确定性模板回答。
     rag_answer_mode: str = os.getenv("RAG_ANSWER_MODE", "auto")
-    # none 保留原有即时计算行为；sqlite 显式启用本地 embedding 缓存。
-    rag_vector_store: str = os.getenv("RAG_VECTOR_STORE", "none")
+    # sqlite（默认）在索引期预计算并缓存 embedding，检索时只读缓存，避免每次全量重算；
+    # none 保留原有“每次查询即时计算”行为；chroma 使用本地 Chroma 持久化。
+    rag_vector_store: str = os.getenv("RAG_VECTOR_STORE", "sqlite")
     rag_chroma_persist_directory: str = os.getenv(
         "RAG_CHROMA_PERSIST_DIRECTORY", "data/chroma"
     )

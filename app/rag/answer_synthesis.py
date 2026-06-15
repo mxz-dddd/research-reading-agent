@@ -4,12 +4,15 @@
 引用校验失败或 LLM 不可用时，由调用方降级到模板回答。
 """
 
+import logging
 import re
 from typing import Any
 
 from app.core.config import settings
 from app.core.llm_client import LLMClientError, OpenAICompatibleClient
 from app.schemas.rag import RagSearchChunk
+
+logger = logging.getLogger(__name__)
 
 CITATION_PATTERN = re.compile(r"\[chunk:([^\]\s]+)\]")
 
@@ -73,7 +76,13 @@ class LLMAnswerSynthesizer:
         ]
         try:
             answer = self.client.chat_text(messages)
-        except LLMClientError:
+        except LLMClientError as exc:
+            # 不再完全静默：记录可见日志，由调用方降级到模板回答。
+            logger.warning(
+                "LLM answer synthesis failed, falling back to template answer (model=%s): %s",
+                self.client.model,
+                exc,
+            )
             return None
         citations = validate_citations(answer, evidence_chunks)
         return {

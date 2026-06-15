@@ -434,4 +434,4 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -p no:cacheprovider tests
 
 ## 16. License
 
-License 暂未指定。
+本项目采用 MIT License，详见 [LICENSE](LICENSE)。
