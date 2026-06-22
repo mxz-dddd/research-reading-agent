@@ -1,13 +1,28 @@
 from typing import Any
 
 
-def build_final_answer(tool_name: str, data: Any) -> str:
+def build_final_answer(tool_name: str, data: Any, *, arguments: dict[str, Any] | None = None) -> str:
     if tool_name == "search_papers":
+        arguments = arguments or {}
+        append_mode = bool(arguments.get("append_mode"))
+        offset = int(arguments.get("result_offset") or 0) if append_mode else 0
         if not data:
-            return "这次没有找到候选论文。可以换成英文关键词，或放宽主题后再搜索。"
-        lines = [f"已找到 {len(data)} 篇候选论文："]
-        for index, paper in enumerate(data[:5], start=1):
-            lines.append(f"{index}. P{paper.get('id')} {paper.get('title')}")
+            if append_mode:
+                return "我已排除刚才展示过的论文继续检索，但没有找到更多新的匹配结果。可以尝试放宽时间范围、减少限定词，或换一个相关主题。"
+            return "已自动转换为英文学术关键词，但当前检索范围内没有找到匹配论文。可以尝试放宽时间范围或减少限定词。"
+        lines = [f"继续为你补充 {len(data)} 篇：" if append_mode else f"找到 {len(data)} 篇相关论文："]
+        display_limit = int(arguments.get("max_results") or 5)
+        for index, paper in enumerate(data[:display_limit], start=offset + 1):
+            published_at = str(paper.get("published_at") or "")
+            year = published_at[:4] if len(published_at) >= 4 else "未知"
+            relevance = paper.get("relevance_score") or "待评估"
+            abstract = str(paper.get("abstract") or paper.get("summary") or "").strip()
+            intro = abstract[:120] + ("..." if len(abstract) > 120 else "")
+            lines.append(f"{index}. {paper.get('title')}")
+            lines.append(f"   年份：{year}")
+            lines.append(f"   相关性：{relevance}/5" if isinstance(relevance, int) else f"   相关性：{relevance}")
+            if intro:
+                lines.append(f"   简介：{intro}")
         lines.append("你可以说“接收第 2 篇”或“对第 2 篇做深入阅读”。")
         return "\n".join(lines)
     if tool_name == "accept_paper":
@@ -18,6 +33,24 @@ def build_final_answer(tool_name: str, data: Any) -> str:
             f"阅读模式：{data.get('ingest_status')}。\n"
             f"总结路径：{data.get('local_summary_path')}"
         )
+    if tool_name == "batch_ingest_papers":
+        total = int(data.get("total") or 0)
+        lines = [f"已完成对刚才 {total} 篇论文的深入阅读：", ""]
+        for item in data.get("items") or []:
+            lines.append(f"{item.get('position')}. {item.get('title')}")
+            if item.get("status") == "success":
+                mode = "PDF全文" if item.get("ingest_status") == "pdf_text" else "摘要降级"
+                lines.append("   状态：完成")
+                lines.append(f"   阅读方式：{mode}")
+            else:
+                lines.append("   状态：失败")
+                lines.append(f"   原因：{item.get('error') or '处理失败，已保留现有论文信息'}")
+            lines.append("")
+        lines.append(
+            f"本次完成 {data.get('succeeded', 0)} 篇，失败 {data.get('failed', 0)} 篇。"
+        )
+        lines.append("你可以继续说“查看第2篇详情”或“基于这些论文生成知识树”。")
+        return "\n".join(lines)
     if tool_name == "list_accepted_papers":
         if not data:
             return "当前还没有已接收论文。"

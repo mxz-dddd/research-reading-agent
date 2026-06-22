@@ -7,7 +7,10 @@ import streamlit as st
 
 
 DEFAULT_API_BASE_URL = "http://127.0.0.1:8000"
-BACKEND_HELP = "后端未运行，请先启动 FastAPI 后端：\nuvicorn app.main:app --reload"
+BACKEND_HELP = "后端未运行，请先启动 FastAPI 后端。"
+DEFAULT_REQUEST_TIMEOUT = 60
+LONG_REQUEST_TIMEOUT = 180
+WORKFLOW_REQUEST_TIMEOUT = 600
 
 PAGE_DASHBOARD = "仪表盘"
 PAGE_AGENT_CHAT = "智能体对话"
@@ -29,11 +32,11 @@ def normalize_base_url(url: str) -> str:
 
 def init_session_state() -> None:
     defaults = {
-        "api_base_url": DEFAULT_API_BASE_URL,
         "latest_run_id": "",
         "latest_trace_id": "",
         "latest_report_path": "",
         "latest_agent_response": None,
+        "workflow_running": False,
     }
     for key, value in defaults.items():
         st.session_state.setdefault(key, value)
@@ -48,57 +51,92 @@ def backend_health() -> bool:
     return response.status_code == 200
 
 
+def request_timeout_for_path(path: str) -> int:
+    if path == "/api/workflow/run":
+        return WORKFLOW_REQUEST_TIMEOUT
+    if path in {"/api/rag/answer", "/api/knowledge/generate", "/api/innovation/generate"}:
+        return LONG_REQUEST_TIMEOUT
+    return DEFAULT_REQUEST_TIMEOUT
+
+
+def _backend_detail(payload: Any) -> str:
+    if isinstance(payload, dict):
+        detail = payload.get("detail") or payload.get("error") or payload.get("message")
+        if detail:
+            return str(detail)
+    return ""
+
+
+def response_payload_or_error(response: requests.Response) -> tuple[dict[str, Any] | None, str | None]:
+    try:
+        payload: Any = response.json()
+    except ValueError:
+        preview = response.text[:500]
+        if response.status_code >= 400:
+            return {"raw_response": preview}, f"请求失败，HTTP {response.status_code}，后端返回了非 JSON 响应：{preview}"
+        return {"raw_response": preview}, "接口返回不是有效 JSON。"
+
+    if not isinstance(payload, dict):
+        return None, "接口返回的 JSON 不是对象。"
+
+    if 400 <= response.status_code < 500:
+        detail = _backend_detail(payload)
+        suffix = f"：{detail}" if detail else ""
+        return payload, f"请求失败，HTTP {response.status_code}{suffix}"
+    if response.status_code >= 500:
+        detail = _backend_detail(payload)
+        suffix = f"：{detail}" if detail else ""
+        return payload, f"后端内部错误，HTTP {response.status_code}{suffix}"
+    return payload, None
+
+
 def api_request(method: str, path: str, *, json: dict[str, Any] | None = None) -> tuple[dict[str, Any] | None, str | None]:
     base_url = normalize_base_url(st.session_state.get("api_base_url", DEFAULT_API_BASE_URL))
     url = f"{base_url}{path}"
     try:
-        response = requests.request(method, url, json=json, timeout=30)
-    except requests.RequestException:
+        response = requests.request(
+            method,
+            url,
+            json=json,
+            timeout=request_timeout_for_path(path),
+        )
+    except requests.Timeout:
+        return None, (
+            "请求已超时。后端可能仍在运行，请稍后查看研究流程历史或后端日志。"
+        )
+    except requests.ConnectionError:
         return None, BACKEND_HELP
+    except requests.RequestException as exc:
+        return None, f"请求异常：{exc}"
 
-    try:
-        payload = response.json()
-    except ValueError:
-        payload = {"raw_response": response.text}
-
-    if response.status_code >= 400:
-        return payload, f"请求失败，HTTP 状态码：{response.status_code}。请检查后端是否启动。"
-    return payload, None
+    return response_payload_or_error(response)
 
 
 def safe_api_get(path: str, params: dict | None = None) -> tuple[bool, dict | None, str | None]:
     base_url = normalize_base_url(st.session_state.get("api_base_url", DEFAULT_API_BASE_URL))
     try:
-        response = requests.get(f"{base_url}{path}", params=params, timeout=15)
-        if not response.ok:
-            return False, None, f"请求失败，HTTP {response.status_code}：{response.text[:500]}"
-        data = response.json()
-        if not isinstance(data, dict):
-            return False, None, "接口返回的 JSON 不是对象。"
-        return True, data, None
-    except requests.exceptions.RequestException:
+        response = requests.get(f"{base_url}{path}", params=params, timeout=request_timeout_for_path(path))
+        data, error = response_payload_or_error(response)
+        return error is None, data, error
+    except requests.exceptions.ConnectionError:
         return False, None, BACKEND_HELP
-    except ValueError as exc:
-        return False, None, f"接口返回不是有效 JSON：{exc}"
-    except Exception as exc:
+    except requests.exceptions.Timeout:
+        return False, None, "请求已超时。后端可能仍在运行，请稍后刷新查看结果。"
+    except requests.exceptions.RequestException as exc:
         return False, None, f"请求异常：{exc}"
 
 
 def safe_api_post(path: str, payload: dict) -> tuple[bool, dict | None, str | None]:
     base_url = normalize_base_url(st.session_state.get("api_base_url", DEFAULT_API_BASE_URL))
     try:
-        response = requests.post(f"{base_url}{path}", json=payload, timeout=15)
-        if not response.ok:
-            return False, None, f"请求失败，HTTP {response.status_code}：{response.text[:500]}"
-        data = response.json()
-        if not isinstance(data, dict):
-            return False, None, "接口返回的 JSON 不是对象。"
-        return True, data, None
-    except requests.exceptions.RequestException:
+        response = requests.post(f"{base_url}{path}", json=payload, timeout=request_timeout_for_path(path))
+        data, error = response_payload_or_error(response)
+        return error is None, data, error
+    except requests.exceptions.ConnectionError:
         return False, None, BACKEND_HELP
-    except ValueError as exc:
-        return False, None, f"接口返回不是有效 JSON：{exc}"
-    except Exception as exc:
+    except requests.exceptions.Timeout:
+        return False, None, "请求已超时。后端可能仍在运行，请稍后刷新查看结果。"
+    except requests.exceptions.RequestException as exc:
         return False, None, f"请求异常：{exc}"
 
 
@@ -175,10 +213,19 @@ def render_workflow_result(payload: dict[str, Any]) -> None:
 
 
 def run_workflow_request(body: dict[str, Any]) -> None:
-    payload, error = api_request("POST", "/api/workflow/run", json=body)
-    render_error(error)
-    if payload:
-        render_workflow_result(payload)
+    if st.session_state.get("workflow_running"):
+        st.warning("研究流程正在运行，请等待当前请求结束。")
+        return
+    st.session_state["workflow_running"] = True
+    try:
+        st.info("已提交研究流程请求，正在等待后端响应。")
+        with st.spinner("研究流程运行中，长任务可能需要几分钟..."):
+            payload, error = api_request("POST", "/api/workflow/run", json=body)
+        render_error(error)
+        if payload:
+            render_workflow_result(payload)
+    finally:
+        st.session_state["workflow_running"] = False
 
 
 def metric_value(value: Any) -> str:
@@ -524,12 +571,13 @@ def run_workflow_page() -> None:
     col1, col2 = st.columns(2)
     max_results = col1.number_input("max_results（搜索论文数量）", min_value=1, max_value=20, value=3, step=1)
     accept_top_k = col2.number_input("accept_top_k（自动接收前 K 篇）", min_value=1, max_value=20, value=2, step=1)
-    dry_run = st.checkbox("dry_run（演示模式）", value=True, help="使用模拟数据演示完整流程，适合无网络演示。")
+    dry_run = st.checkbox("dry_run（演示模式）", value=False, help="使用模拟数据演示完整流程，适合无网络演示。")
     index_rag = st.checkbox("index_rag（自动建立 RAG 索引）", value=True, help="流程 ingest 后，为论文建立本地 RAG v1 索引。")
+    is_running = bool(st.session_state.get("workflow_running"))
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("运行研究流程", type="primary"):
+        if st.button("运行研究流程", type="primary", disabled=is_running):
             run_workflow_request(
                 {
                     "topic": topic,
@@ -541,7 +589,7 @@ def run_workflow_page() -> None:
             )
 
     with col2:
-        if st.button("运行演示流程"):
+        if st.button("运行演示流程", disabled=is_running):
             run_workflow_request(
                 {
                     "topic": "large language model agent",

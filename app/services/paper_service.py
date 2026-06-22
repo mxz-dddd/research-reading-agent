@@ -1,5 +1,7 @@
 import json
+import re
 import ssl
+from datetime import date
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -8,6 +10,7 @@ import certifi
 from fastapi import HTTPException
 
 from app.core.config import settings
+from app.core.llm_client import LLMClientError, OpenAICompatibleClient
 from app.repositories.paper_repo import PaperRepository
 from app.schemas.paper import (
     PaperAcceptRequest,
@@ -19,6 +22,7 @@ from app.schemas.paper import (
     PaperSearchRequest,
 )
 from app.services.archive_service import ArchiveService
+from app.services.search_query_translation_service import SearchQueryTranslationService
 from app.tools.search_papers import search_papers
 
 
@@ -26,16 +30,41 @@ class PaperService:
     def __init__(self) -> None:
         self.paper_repo = PaperRepository()
         self.archive_service = ArchiveService()
+        self.query_translation_service = SearchQueryTranslationService()
 
     def search_and_store(self, payload: PaperSearchRequest) -> list[PaperRead]:
         topic = payload.search_topic.strip()
         if not topic:
             raise HTTPException(status_code=400, detail="topic 不能为空")
 
-        search_result = search_papers(query=topic, limit=payload.result_limit)
+        published_from, published_to = self._payload_or_text_date_range(payload, topic)
+        academic_topic = self._strip_search_constraints(topic) or topic
+        translation = self.query_translation_service.translate_for_search(academic_topic)
+        effective_search_query = translation.search_query
+        exclude_urls = self._excluded_urls(payload)
+        search_result = search_papers(
+            query=effective_search_query,
+            limit=payload.result_limit,
+            required_terms=translation.required_terms,
+            optional_terms=translation.optional_terms,
+            phrases=translation.phrases,
+            synonyms=translation.synonyms,
+            published_from=published_from,
+            published_to=published_to,
+            exclude_urls=exclude_urls,
+            exclude_arxiv_ids=payload.exclude_arxiv_ids,
+        )
         papers: list[PaperRead] = []
         for item in search_result.papers:
-            screening = self._build_screening(topic=topic, paper=item)
+            existing = self._get_existing_paper(item.get("url"))
+            if existing is not None:
+                papers.append(existing)
+                continue
+            screening = self._build_screening(
+                original_topic=topic,
+                effective_search_query=effective_search_query,
+                paper=item,
+            )
             papers.append(
                 self.paper_repo.create(
                     PaperCreate(
@@ -59,13 +88,33 @@ class PaperService:
                 source=search_result.source,
                 result_count=len(papers),
                 query_text=self._build_history_text(
-                    topic=topic,
+                    original_query=topic,
+                    effective_search_query=effective_search_query,
+                    was_translated=translation.was_translated,
+                    translation_method=translation.translation_method,
+                    query_level=search_result.query_level,
+                    final_arxiv_query=search_result.effective_arxiv_query,
+                    attempted_queries=search_result.attempted_queries,
+                    published_from=published_from,
+                    published_to=published_to,
+                    insufficient_results_within_date_range=search_result.insufficient_results_within_date_range,
                     max_results=payload.result_limit,
                     error=search_result.error,
                 ),
             )
         )
         return papers
+
+    def _excluded_urls(self, payload: PaperSearchRequest) -> list[str]:
+        urls = [url for url in payload.exclude_urls if url]
+        for paper_id in payload.exclude_paper_ids:
+            try:
+                paper = self.paper_repo.get(paper_id)
+            except HTTPException:
+                continue
+            if paper.url:
+                urls.append(paper.url)
+        return urls
 
     def list_papers(self, status: str | None = None) -> list[PaperRead]:
         return self.paper_repo.list(status=status)
@@ -155,48 +204,57 @@ class PaperService:
             ingest_status=ingest_status,
         )
 
-    def _build_screening(self, topic: str, paper: dict[str, Any]) -> dict[str, Any]:
+    def _build_screening(
+        self,
+        *,
+        original_topic: str,
+        effective_search_query: str,
+        paper: dict[str, Any],
+    ) -> dict[str, Any]:
         if settings.openai_api_key:
-            llm_result = self._try_llm_screening(topic=topic, paper=paper)
+            llm_result = self._try_llm_screening(
+                original_topic=original_topic,
+                effective_search_query=effective_search_query,
+                paper=paper,
+            )
             if llm_result:
                 return llm_result
-        return self._rule_based_screening(topic=topic, paper=paper)
-
-    def _try_llm_screening(self, topic: str, paper: dict[str, Any]) -> dict[str, Any] | None:
-        prompt = f"""
-你是科研论文助手。请根据用户研究主题和论文信息，输出适合中文快速初筛的 JSON。
-
-研究主题：{topic}
-论文标题：{paper.get("title")}
-论文摘要：{paper.get("abstract")}
-
-只返回 JSON，不要 Markdown。字段：
-- screening_summary: 中文，2-4 句话，说明研究问题、方法/对象、可能价值
-- relevance_score: 1-5 的整数，5 表示高度相关
-- worth_reading: 只能是 "值得继续看"、"可选阅读"、"暂不优先" 之一
-"""
-        body = {
-            "model": settings.openai_model,
-            "input": prompt,
-        }
-        request = Request(
-            "https://api.openai.com/v1/responses",
-            data=json.dumps(body).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {settings.openai_api_key}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
+        return self._rule_based_screening(
+            original_topic=original_topic,
+            effective_search_query=effective_search_query,
+            paper=paper,
         )
 
+    def _try_llm_screening(
+        self,
+        *,
+        original_topic: str,
+        effective_search_query: str,
+        paper: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        prompt = f"""
+You are a research paper screening assistant. Based on the user topic, the actual English
+search query, and paper metadata, return a Chinese JSON object for quick screening.
+
+Original user topic: {original_topic}
+Effective English search query: {effective_search_query}
+Title: {paper.get("title")}
+Abstract: {paper.get("abstract")}
+
+Return JSON only, with these fields:
+- screening_summary: Chinese, 2-4 sentences.
+- relevance_score: integer 1-5.
+- worth_reading: one of "值得继续看", "可选阅读", "暂不优先".
+"""
         try:
-            with urlopen(request, timeout=30, context=self._ssl_context()) as response:
-                data = json.loads(response.read().decode("utf-8"))
-            text = self._extract_response_text(data)
+            text = OpenAICompatibleClient().responses_text(
+                prompt,
+                instructions="Return only valid JSON for research paper screening.",
+            )
             parsed = json.loads(text)
             return self._normalize_screening(parsed)
-        except (HTTPError, URLError, TimeoutError, json.JSONDecodeError, KeyError, TypeError, ValueError):
-            # LLM 失败不影响接口可用，直接回退到规则版初筛。
+        except (LLMClientError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+            print(f"paper screening LLM fallback: {type(exc).__name__}: {exc}")
             return None
 
     def _extract_response_text(self, data: dict[str, Any]) -> str:
@@ -225,15 +283,24 @@ class PaperService:
             "worth_reading": worth_reading,
         }
 
-    def _rule_based_screening(self, topic: str, paper: dict[str, Any]) -> dict[str, Any]:
+    def _rule_based_screening(
+        self,
+        *,
+        original_topic: str,
+        effective_search_query: str,
+        paper: dict[str, Any],
+    ) -> dict[str, Any]:
         title = str(paper.get("title") or "")
         abstract = str(paper.get("abstract") or "")
         text = f"{title} {abstract}".lower()
-        topic_words = [word.lower() for word in topic.replace("，", " ").replace(",", " ").split()]
-        matched = [word for word in topic_words if word and word in text]
-        match_ratio = len(matched) / max(len(topic_words), 1)
+        query_words = [
+            word.lower()
+            for word in re.findall(r"[A-Za-z0-9][A-Za-z0-9\-]*", effective_search_query)
+        ]
+        matched = [word for word in query_words if word and word in text]
+        match_ratio = len(matched) / max(len(query_words), 1)
 
-        if topic.lower() in text:
+        if effective_search_query.lower() in text:
             score = 5
         elif match_ratio >= 0.6:
             score = 4
@@ -251,7 +318,7 @@ class PaperService:
 
         abstract_preview = abstract[:180] + ("..." if len(abstract) > 180 else "")
         summary = (
-            f"这篇论文与主题“{topic}”的初步相关度为 {score}/5。"
+            f"这篇论文与主题“{original_topic}”的初步相关度为 {score}/5。"
             f"标题显示其关注点是“{title}”。"
         )
         if abstract_preview:
@@ -266,14 +333,126 @@ class PaperService:
 
     def _build_history_text(
         self,
-        topic: str,
+        *,
+        original_query: str,
+        effective_search_query: str,
+        was_translated: bool,
+        translation_method: str,
+        query_level: int | None,
+        final_arxiv_query: str | None,
+        attempted_queries: list[dict[str, Any]],
+        published_from: date | None,
+        published_to: date | None,
+        insufficient_results_within_date_range: bool,
         max_results: int,
         error: str | None = None,
     ) -> str:
-        text = f"topic={topic}; max_results={max_results}"
+        text = (
+            f"original_query={original_query}; "
+            f"effective_search_query={effective_search_query}; "
+            f"was_translated={str(was_translated).lower()}; "
+            f"translation_method={translation_method}; "
+            f"query_level={query_level}; "
+            f"final_arxiv_query={final_arxiv_query}; "
+            f"attempted_query_count={len(attempted_queries)}; "
+            f"published_from={published_from}; "
+            f"published_to={published_to}; "
+            f"insufficient_results_within_date_range={str(insufficient_results_within_date_range).lower()}; "
+            f"max_results={max_results}"
+        )
         if error:
             text += f"; fallback_reason={error}"
         return text
+
+    def _get_existing_paper(self, url: str | None) -> PaperRead | None:
+        if not url or not hasattr(self.paper_repo, "get_by_url"):
+            return None
+        candidates = [url]
+        if url.startswith("http://"):
+            candidates.append("https://" + url.removeprefix("http://"))
+        elif url.startswith("https://"):
+            candidates.append("http://" + url.removeprefix("https://"))
+        for candidate in candidates:
+            paper = self.paper_repo.get_by_url(candidate)
+            if paper is not None:
+                return paper
+        return None
+
+    def _extract_published_range(self, text: str) -> tuple[date | None, date | None]:
+        today = date.today()
+        compact = re.sub(r"\s+", "", text)
+
+        year_span = re.search(r"((?:19|20)\d{2})年?(?:到|至|-|~)((?:19|20)\d{2})年?", compact)
+        if year_span:
+            start_year = int(year_span.group(1))
+            end_year = int(year_span.group(2))
+            return date(start_year, 1, 1), date(end_year, 12, 31)
+
+        since_year = re.search(r"((?:19|20)\d{2})年?以来", compact)
+        if since_year:
+            return date(int(since_year.group(1)), 1, 1), today
+
+        recent_years = re.search(r"(?:近|最近)([一二两三四五六七八九十\d]+)年", compact)
+        if recent_years:
+            years = self._parse_year_count(recent_years.group(1))
+            if years:
+                return date(today.year - years, today.month, today.day), today
+
+        return None, None
+
+    def _strip_search_constraints(self, text: str) -> str:
+        cleaned = re.sub(r"(?:近|最近)\s*[一二两三四五六七八九十\d]+\s*年", " ", text)
+        cleaned = re.sub(r"(?:19|20)\d{2}\s*年?\s*以来", " ", cleaned)
+        cleaned = re.sub(r"(?:19|20)\d{2}\s*年?\s*(?:到|至|-|~)\s*(?:19|20)\d{2}\s*年?", " ", cleaned)
+        cleaned = re.sub(r"\d+\s*篇", " ", cleaned)
+        cleaned = re.sub(r"(帮我|请|搜索|查找|找|论文|paper|papers|search|给我|几篇|相关的|相关|要|的)", " ", cleaned, flags=re.I)
+        cleaned = re.sub(r"[，,。.!！?？]", " ", cleaned)
+        return " ".join(cleaned.split())
+
+    def _parse_year_count(self, value: str) -> int | None:
+        if value.isdigit():
+            return int(value)
+        chinese_numbers = {
+            "一": 1,
+            "二": 2,
+            "两": 2,
+            "三": 3,
+            "四": 4,
+            "五": 5,
+            "六": 6,
+            "七": 7,
+            "八": 8,
+            "九": 9,
+            "十": 10,
+        }
+        if value == "十":
+            return 10
+        if value.startswith("十") and len(value) == 2:
+            return 10 + chinese_numbers.get(value[1], 0)
+        if value.endswith("十") and len(value) == 2:
+            return chinese_numbers.get(value[0], 0) * 10
+        if len(value) == 3 and value[1] == "十":
+            return chinese_numbers.get(value[0], 0) * 10 + chinese_numbers.get(value[2], 0)
+        return chinese_numbers.get(value)
+
+    def _payload_or_text_date_range(
+        self,
+        payload: PaperSearchRequest,
+        topic: str,
+    ) -> tuple[date | None, date | None]:
+        parsed_from = self._parse_date_value(payload.published_from)
+        parsed_to = self._parse_date_value(payload.published_to)
+        if parsed_from or parsed_to:
+            return parsed_from, parsed_to
+        return self._extract_published_range(topic)
+
+    def _parse_date_value(self, value: str | None) -> date | None:
+        if not value:
+            return None
+        try:
+            return date.fromisoformat(str(value)[:10])
+        except ValueError:
+            return None
 
     def _ssl_context(self) -> ssl.SSLContext:
         return ssl.create_default_context(cafile=certifi.where())
@@ -316,17 +495,17 @@ class PaperService:
 
     def _try_llm_deep_summary(self, paper: PaperRead, text: str, mode: str) -> str | None:
         prompt = f"""
-你是科研论文助手。请基于论文信息生成结构化中文深度总结。
+You are a research paper reading assistant. Generate a structured Chinese Markdown deep summary.
 
-阅读模式：{mode}
-论文标题：{paper.title}
-作者：{paper.authors}
-发表时间：{paper.published_at}
-论文链接：{paper.url}
-文本内容：
+Reading mode: {mode}
+Title: {paper.title}
+Authors: {paper.authors}
+Published at: {paper.published_at}
+URL: {paper.url}
+Text:
 {text[:12000]}
 
-请用 Markdown 输出，必须包含这些小节：
+The Markdown must include these sections:
 ## 研究问题
 ## 核心方法
 ## 关键贡献
@@ -335,25 +514,18 @@ class PaperService:
 ## 局限
 ## 对后续研究的启发
 """
-        body = {"model": settings.openai_model, "input": prompt}
-        request = Request(
-            "https://api.openai.com/v1/responses",
-            data=json.dumps(body).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {settings.openai_api_key}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
-        )
-
         try:
-            with urlopen(request, timeout=45, context=self._ssl_context()) as response:
-                data = json.loads(response.read().decode("utf-8"))
-            text_output = self._extract_response_text(data)
+            text_output = OpenAICompatibleClient().responses_text(
+                prompt,
+                instructions=(
+                    "You are a research paper reading assistant. Write a structured "
+                    "Chinese Markdown deep summary."
+                ),
+            )
             return text_output.strip() or None
-        except (HTTPError, URLError, TimeoutError, json.JSONDecodeError, KeyError, TypeError, ValueError):
+        except (LLMClientError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+            print(f"paper summary LLM fallback: {type(exc).__name__}: {exc}")
             return None
-
     def _rule_based_deep_summary(self, paper: PaperRead, text: str, mode: str) -> str:
         preview = text[:900] + ("..." if len(text) > 900 else "")
         return f"""# {paper.title}
@@ -393,3 +565,4 @@ class PaperService:
         if extract_error:
             notes.append(f"- 文本提取提示：{extract_error}")
         return "\n".join(notes) + "\n"
+

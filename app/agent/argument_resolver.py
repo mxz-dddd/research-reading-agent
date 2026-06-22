@@ -32,6 +32,10 @@ def resolve_arguments(
         arguments["topic_id"] = payload.topic_id
         arguments["user_id"] = payload.user_id
         arguments["session_id"] = payload.session_id
+        if arguments.get("published_from") is None:
+            arguments.pop("published_from", None)
+        if arguments.get("published_to") is None:
+            arguments.pop("published_to", None)
         return arguments
 
     if tool_name in {"accept_paper", "ingest_paper", "get_paper_detail"}:
@@ -50,6 +54,23 @@ def resolve_arguments(
         if paper_id is None:
             raise ValueError("请提供 paper_id，或使用“第 N 篇”引用最近一次搜索结果。")
         return {"paper_id": int(paper_id)}
+
+    if tool_name == "batch_ingest_papers":
+        paper_ids = [int(value) for value in arguments.get("paper_ids") or []]
+        positions = [int(value) for value in arguments.get("source_positions") or []]
+        if not paper_ids:
+            raise ValueError(
+                "我理解你想对刚才的论文做深入阅读，但没有找到可操作的论文编号。"
+                "你可以说“对第2篇做深入阅读”或“对刚才5篇都做深入阅读”。"
+            )
+        if len(paper_ids) > 10:
+            raise ValueError("一次最多深入阅读 10 篇，请指定不超过 10 篇的范围。")
+        if positions and len(positions) != len(paper_ids):
+            raise ValueError("论文范围与编号数量不一致，请重新指定范围。")
+        return {
+            "paper_ids": paper_ids,
+            "source_positions": positions or list(range(1, len(paper_ids) + 1)),
+        }
 
     if tool_name in {"generate_knowledge", "generate_innovation"}:
         return {"topic": arguments.get("topic")}

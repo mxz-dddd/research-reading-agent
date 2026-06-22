@@ -8,6 +8,7 @@ import certifi
 from fastapi import HTTPException
 
 from app.core.config import settings
+from app.core.llm_client import LLMClientError, OpenAICompatibleClient
 from app.repositories.knowledge_repo import KnowledgeRepository
 from app.repositories.paper_repo import PaperRepository
 from app.schemas.knowledge import (
@@ -87,27 +88,23 @@ class KnowledgeService:
         return filtered
 
     def _build_with_llm(self, topic: str | None, papers: list[PaperRead]) -> dict[str, str] | None:
-        if not settings.openai_api_key:
+        client = OpenAICompatibleClient()
+        if not client.is_configured():
             return None
 
         prompt = self._build_llm_prompt(topic, papers)
-        body = {"model": settings.openai_model, "input": prompt}
-        request = Request(
-            "https://api.openai.com/v1/responses",
-            data=json.dumps(body).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {settings.openai_api_key}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
-        )
-
         try:
-            with urlopen(request, timeout=60, context=self._ssl_context()) as response:
-                data = json.loads(response.read().decode("utf-8"))
-            parsed = json.loads(self._extract_response_text(data))
+            text = client.responses_text(
+                prompt,
+                instructions=(
+                    "You are a research learning assistant. Return one valid JSON object "
+                    "with the requested Chinese knowledge tree fields."
+                ),
+            )
+            parsed = json.loads(text)
             return self._normalize_artifact_data(parsed)
-        except (HTTPError, URLError, TimeoutError, json.JSONDecodeError, KeyError, TypeError, ValueError):
+        except (LLMClientError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+            print(f"knowledge LLM fallback: {type(exc).__name__}: {exc}")
             return None
 
     def _build_llm_prompt(self, topic: str | None, papers: list[PaperRead]) -> str:
