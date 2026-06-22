@@ -242,8 +242,6 @@ class MultiStepOrchestrator:
         if last_tool_name is not None and last_data is not None:
             final_answer = build_final_answer(last_tool_name, last_data)
         else:
-            errors = "；".join(
-                f"{call.tool_name}: {call.error}" for call in executed if call.error
-            )
+            errors = "；".join(f"{call.tool_name}: {call.error}" for call in executed if call.error)
             final_answer = f"多步执行未完成：{errors or '没有可用的工具结果。'}"
         return self._final_response(final_answer, executed, last_tool_name, last_data)

@@ -1,18 +1,19 @@
-import sys
 from pathlib import Path
 
 import pytest
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-from app.services.rag_quality_eval_service import GoldenQuery, RagQualityEvalService, RetrievalEvalResult
+from app.services.rag_quality_eval_service import (
+    GoldenQuery,
+    RagQualityEvalService,
+    RetrievalEvalResult,
+)
 
 
 def test_load_golden_queries_reads_jsonl_defaults(tmp_path: Path) -> None:
     path = tmp_path / "golden.jsonl"
-    path.write_text('{"query_id":"gq-1","query":"What is the method?","paper_id":12}\n', encoding="utf-8")
+    path.write_text(
+        '{"query_id":"gq-1","query":"What is the method?","paper_id":12}\n', encoding="utf-8"
+    )
 
     queries = RagQualityEvalService().load_golden_queries(path)
 
@@ -50,7 +51,9 @@ def test_evaluate_search_response_matches_expected_terms_from_chunks() -> None:
         "pipeline": {"retrieval_mode": "hybrid"},
     }
 
-    result = RagQualityEvalService().evaluate_search_response(golden, response, retrieval_mode="hybrid", top_k=5)
+    result = RagQualityEvalService().evaluate_search_response(
+        golden, response, retrieval_mode="hybrid", top_k=5
+    )
 
     assert result.matched_expected_terms == ["method", "approach"]
     assert result.missing_expected_terms == ["missing"]
@@ -66,9 +69,13 @@ def test_evaluate_search_response_matches_chunk_and_paper_ids() -> None:
         expected_chunk_ids=["chunk-1", "chunk-2"],
         expected_paper_ids=["paper-1", "paper-2"],
     )
-    response = {"items": [{"chunk_id": "chunk-1", "paper_id": "paper-1", "content_preview": "evidence"}]}
+    response = {
+        "items": [{"chunk_id": "chunk-1", "paper_id": "paper-1", "content_preview": "evidence"}]
+    }
 
-    result = RagQualityEvalService().evaluate_search_response(golden, response, retrieval_mode="keyword", top_k=3)
+    result = RagQualityEvalService().evaluate_search_response(
+        golden, response, retrieval_mode="keyword", top_k=3
+    )
 
     assert result.matched_expected_chunk_ids == ["chunk-1"]
     assert result.missing_expected_chunk_ids == ["chunk-2"]
@@ -81,7 +88,9 @@ def test_evaluate_search_response_matches_chunk_and_paper_ids() -> None:
 def test_evaluate_search_response_empty_expected_lists_have_full_recall() -> None:
     golden = GoldenQuery(query_id="gq-1", query="anything")
 
-    result = RagQualityEvalService().evaluate_search_response(golden, {}, retrieval_mode="hybrid", top_k=5)
+    result = RagQualityEvalService().evaluate_search_response(
+        golden, {}, retrieval_mode="hybrid", top_k=5
+    )
 
     assert result.recall_expected_terms == 1.0
     assert result.recall_expected_chunk_ids == 1.0
@@ -91,9 +100,13 @@ def test_evaluate_search_response_empty_expected_lists_have_full_recall() -> Non
 def test_evaluate_answer_response_checks_must_contain_any() -> None:
     service = RagQualityEvalService()
     golden = GoldenQuery(query_id="gq-1", query="answer", must_contain_any=["method", "approach"])
-    retrieval_result = service.evaluate_search_response(golden, {}, retrieval_mode="hybrid", top_k=5)
+    retrieval_result = service.evaluate_search_response(
+        golden, {}, retrieval_mode="hybrid", top_k=5
+    )
 
-    updated = service.evaluate_answer_response(golden, {"answer": "This paper describes a method."}, retrieval_result)
+    updated = service.evaluate_answer_response(
+        golden, {"answer": "This paper describes a method."}, retrieval_result
+    )
 
     assert isinstance(updated, RetrievalEvalResult)
     assert updated.answer_contains_any is True

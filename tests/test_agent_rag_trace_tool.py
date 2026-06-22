@@ -1,13 +1,7 @@
-import sys
-from pathlib import Path
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.agent.orchestrator import AgentOrchestrator
 from app.agent.tool_registry import ToolRegistry
@@ -25,7 +19,9 @@ def fake_trace(trace_id: str = "trace_test_1", paper_id: str | None = "12") -> d
         "hit_count": 1,
         "no_evidence": False,
         "answer": "fake answer",
-        "evidence": [{"chunk_id": "chunk-1", "paper_id": paper_id, "score_reason": "命中 2 个查询词"}],
+        "evidence": [
+            {"chunk_id": "chunk-1", "paper_id": paper_id, "score_reason": "命中 2 个查询词"}
+        ],
         "metadata": {"source": "test"},
         "created_at": "2026-01-01T00:00:00Z",
     }

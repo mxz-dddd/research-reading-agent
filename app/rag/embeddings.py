@@ -1,5 +1,5 @@
-import importlib
 import hashlib
+import importlib
 import math
 import re
 from typing import Any, Protocol
@@ -9,21 +9,16 @@ from app.core.config import settings
 
 def _tokens(text: str) -> list[str]:
     return [
-        token.lower()
-        for token in re.findall(r"[a-zA-Z0-9_\u4e00-\u9fff]+", text)
-        if token.strip()
+        token.lower() for token in re.findall(r"[a-zA-Z0-9_\u4e00-\u9fff]+", text) if token.strip()
     ]
 
 
 class BaseEmbeddingProvider(Protocol):
-    def embed_text(self, text: str) -> list[float]:
-        ...
+    def embed_text(self, text: str) -> list[float]: ...
 
-    def embed_texts(self, texts: list[str]) -> list[list[float]]:
-        ...
+    def embed_texts(self, texts: list[str]) -> list[list[float]]: ...
 
-    def metadata(self) -> dict[str, Any]:
-        ...
+    def metadata(self) -> dict[str, Any]: ...
 
 
 def _l2_normalize(vector: list[float]) -> list[float]:
@@ -142,7 +137,7 @@ class SentenceTransformersEmbeddingProvider:
 
 
 def cosine_similarity(left: list[float], right: list[float]) -> float:
-    return sum(a * b for a, b in zip(left, right))
+    return sum(a * b for a, b in zip(left, right, strict=False))
 
 
 def get_embedding_provider(

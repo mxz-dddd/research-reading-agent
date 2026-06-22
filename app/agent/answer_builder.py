@@ -1,7 +1,9 @@
 from typing import Any
 
 
-def build_final_answer(tool_name: str, data: Any, *, arguments: dict[str, Any] | None = None) -> str:
+def build_final_answer(
+    tool_name: str, data: Any, *, arguments: dict[str, Any] | None = None
+) -> str:
     if tool_name == "search_papers":
         arguments = arguments or {}
         append_mode = bool(arguments.get("append_mode"))
@@ -10,7 +12,9 @@ def build_final_answer(tool_name: str, data: Any, *, arguments: dict[str, Any] |
             if append_mode:
                 return "我已排除刚才展示过的论文继续检索，但没有找到更多新的匹配结果。可以尝试放宽时间范围、减少限定词，或换一个相关主题。"
             return "当前检索范围内没有找到匹配论文。可以补充英文关键词、放宽时间范围或减少限定词后重试。"
-        lines = [f"继续为你补充 {len(data)} 篇：" if append_mode else f"找到 {len(data)} 篇相关论文："]
+        lines = [
+            f"继续为你补充 {len(data)} 篇：" if append_mode else f"找到 {len(data)} 篇相关论文："
+        ]
         display_limit = int(arguments.get("max_results") or 5)
         for index, paper in enumerate(data[:display_limit], start=offset + 1):
             published_at = str(paper.get("published_at") or "")
@@ -20,7 +24,11 @@ def build_final_answer(tool_name: str, data: Any, *, arguments: dict[str, Any] |
             intro = abstract[:120] + ("..." if len(abstract) > 120 else "")
             lines.append(f"{index}. {paper.get('title')}")
             lines.append(f"   年份：{year}")
-            lines.append(f"   相关性：{relevance}/5" if isinstance(relevance, int) else f"   相关性：{relevance}")
+            lines.append(
+                f"   相关性：{relevance}/5"
+                if isinstance(relevance, int)
+                else f"   相关性：{relevance}"
+            )
             if intro:
                 lines.append(f"   简介：{intro}")
         lines.append("你可以说“接收第 2 篇”或“对第 2 篇做深入阅读”。")
@@ -46,9 +54,7 @@ def build_final_answer(tool_name: str, data: Any, *, arguments: dict[str, Any] |
                 lines.append("   状态：失败")
                 lines.append(f"   原因：{item.get('error') or '处理失败，已保留现有论文信息'}")
             lines.append("")
-        lines.append(
-            f"本次完成 {data.get('succeeded', 0)} 篇，失败 {data.get('failed', 0)} 篇。"
-        )
+        lines.append(f"本次完成 {data.get('succeeded', 0)} 篇，失败 {data.get('failed', 0)} 篇。")
         lines.append("你可以继续说“查看第2篇详情”或“基于这些论文生成知识树”。")
         return "\n".join(lines)
     if tool_name == "list_accepted_papers":
@@ -176,7 +182,9 @@ def build_final_answer(tool_name: str, data: Any, *, arguments: dict[str, Any] |
         if not data.get("success"):
             return data.get("answer") or data.get("error") or "RAG 回答失败。"
         if data.get("no_evidence"):
-            return data.get("answer") or "当前已索引论文中没有检索到足够证据，无法基于文档回答该问题。"
+            return (
+                data.get("answer") or "当前已索引论文中没有检索到足够证据，无法基于文档回答该问题。"
+            )
         return data.get("answer") or "当前已索引论文中没有找到足够依据。"
     if tool_name == "get_latest_rag_traces":
         return _format_rag_trace_list("最近的 RAG evidence traces", data.get("items") or [])
@@ -260,7 +268,11 @@ def build_final_answer(tool_name: str, data: Any, *, arguments: dict[str, Any] |
         )
     if tool_name == "get_rag_trace_evidence_evaluation":
         if not data.get("success"):
-            return data.get("message") or data.get("error") or "没有找到对应的 evidence-level 评估详情。"
+            return (
+                data.get("message")
+                or data.get("error")
+                or "没有找到对应的 evidence-level 评估详情。"
+            )
         evidence = data.get("evidence") or []
         if not evidence:
             return data.get("message") or "该 trace 没有 evidence 或暂无 evidence-level feedback。"
@@ -296,7 +308,9 @@ def _format_rag_trace_list(title: str, items: list[dict[str, Any]]) -> str:
     lines = [f"{title}（{len(items)} 条）："]
     for item in items[:10]:
         mode = item.get("mode")
-        no_evidence = "no evidence" if item.get("no_evidence") else f"命中 {item.get('hit_count')} 条"
+        no_evidence = (
+            "no evidence" if item.get("no_evidence") else f"命中 {item.get('hit_count')} 条"
+        )
         paper = item.get("paper_id") or "all"
         lines.append(
             f"- {item.get('trace_id')} | {mode} | paper={paper} | {no_evidence} | query={_preview_line(item.get('query') or '')}"

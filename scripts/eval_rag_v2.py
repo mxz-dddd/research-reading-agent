@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
 import json
-from pathlib import Path
 import sys
-from typing import Any
+from datetime import UTC, datetime
+from importlib import import_module
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -15,7 +16,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.services.rag_quality_eval_service import GoldenQuery, RagQualityEvalService, RetrievalEvalResult
+if TYPE_CHECKING:
+    from app.services.rag_quality_eval_service import GoldenQuery, RetrievalEvalResult
+else:
+    _rag_quality_module = import_module("app.services.rag_quality_eval_service")
+    GoldenQuery = _rag_quality_module.GoldenQuery
+    RetrievalEvalResult = _rag_quality_module.RetrievalEvalResult
+RagQualityEvalService = import_module("app.services.rag_quality_eval_service").RagQualityEvalService
 
 
 def _join_url(base_url: str, path: str) -> str:
@@ -180,17 +187,21 @@ def run_eval(args: argparse.Namespace) -> tuple[int, dict[str, Any] | None]:
             )
 
             if args.run_answer:
-                answer_status, answer_body, answer_raw = _post_json(base_url, "/api/rag/answer", payload)
+                answer_status, answer_body, answer_raw = _post_json(
+                    base_url, "/api/rag/answer", payload
+                )
                 if _is_success(answer_status):
                     service.evaluate_answer_response(golden_query, answer_body, result)
                 else:
-                    result.error = f"answer HTTP {answer_status}: {str(answer_raw or answer_body)[:1000]}"
+                    result.error = (
+                        f"answer HTTP {answer_status}: {str(answer_raw or answer_body)[:1000]}"
+                    )
 
             results.append(result)
 
     summary = service.summarize_results(results)
     output = {
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
         "base_url": base_url,
         "golden_file": str(args.golden_file),
         "retrieval_modes": retrieval_modes,

@@ -1,5 +1,5 @@
-from datetime import datetime, timezone
 import json
+from datetime import UTC, datetime
 from sqlite3 import Row
 from uuid import uuid4
 
@@ -8,7 +8,7 @@ from app.schemas.context import ContextItem, ContextPackRead
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def estimate_tokens(text: str) -> int:

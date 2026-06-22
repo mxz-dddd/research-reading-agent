@@ -1,12 +1,7 @@
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.core import database
 from app.repositories.rag_trace_repo import RagTraceRepository
@@ -39,7 +34,9 @@ def create_trace(trace_id: str = "trace_eval_1", *, no_evidence: bool = False) -
     )
 
 
-def test_rag_evaluation_service_adds_feedback_for_existing_trace(eval_service: RagEvaluationService) -> None:
+def test_rag_evaluation_service_adds_feedback_for_existing_trace(
+    eval_service: RagEvaluationService,
+) -> None:
     create_trace()
 
     result = eval_service.add_trace_feedback(
@@ -54,7 +51,9 @@ def test_rag_evaluation_service_adds_feedback_for_existing_trace(eval_service: R
     assert result["data"].relevance_label == "relevant"
 
 
-def test_rag_evaluation_service_fails_safely_when_trace_missing(eval_service: RagEvaluationService) -> None:
+def test_rag_evaluation_service_fails_safely_when_trace_missing(
+    eval_service: RagEvaluationService,
+) -> None:
     result = eval_service.add_trace_feedback(trace_id="trace_missing", relevance_label="relevant")
 
     assert result["success"] is False

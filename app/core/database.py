@@ -1,12 +1,13 @@
 import sqlite3
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
+from typing import Literal
 
 from app.core.config import settings
 
 
 class ClosingConnection(sqlite3.Connection):
-    def __exit__(self, exc_type, exc_value, traceback) -> bool:
+    def __exit__(self, exc_type, exc_value, traceback) -> Literal[False]:
         try:
             return super().__exit__(exc_type, exc_value, traceback)
         finally:
@@ -237,7 +238,9 @@ def init_db() -> None:
         _add_column_if_missing(conn, "rag_chunks", "section_title", "TEXT")
         _add_column_if_missing(conn, "rag_chunks", "content_for_embedding", "TEXT")
         _add_column_if_missing(conn, "rag_chunks", "token_count", "INTEGER DEFAULT 0")
-        _add_column_if_missing(conn, "rag_chunks", "chunker_version", "TEXT DEFAULT 'contextual_v1'")
+        _add_column_if_missing(
+            conn, "rag_chunks", "chunker_version", "TEXT DEFAULT 'contextual_v1'"
+        )
         _add_column_if_missing(conn, "rag_chunks", "index_version", "TEXT DEFAULT 'hybrid_v2'")
         conn.execute(
             """

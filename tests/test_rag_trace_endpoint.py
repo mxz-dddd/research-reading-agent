@@ -1,12 +1,5 @@
-import sys
-from pathlib import Path
-
 import pytest
 from fastapi.testclient import TestClient
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.api import routes_rag
 from app.main import app
@@ -31,7 +24,9 @@ def fake_trace(trace_id: str = "trace_test_1", paper_id: str | None = "12") -> R
 
 
 def test_rag_traces_latest_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(routes_rag.rag_service, "get_latest_traces", lambda limit=10: [fake_trace()])
+    monkeypatch.setattr(
+        routes_rag.rag_service, "get_latest_traces", lambda limit=10: [fake_trace()]
+    )
     client = TestClient(app)
 
     response = client.get("/api/rag/traces/latest?limit=5")
@@ -43,7 +38,9 @@ def test_rag_traces_latest_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_rag_trace_detail_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(routes_rag.rag_service, "get_trace_detail", lambda trace_id: fake_trace(trace_id))
+    monkeypatch.setattr(
+        routes_rag.rag_service, "get_trace_detail", lambda trace_id: fake_trace(trace_id)
+    )
     client = TestClient(app)
 
     response = client.get("/api/rag/traces/trace_test_1")
@@ -64,7 +61,11 @@ def test_rag_trace_detail_endpoint_404(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_rag_traces_by_paper_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(routes_rag.rag_service, "list_traces_by_paper", lambda paper_id, limit=10: [fake_trace(paper_id=paper_id)])
+    monkeypatch.setattr(
+        routes_rag.rag_service,
+        "list_traces_by_paper",
+        lambda paper_id, limit=10: [fake_trace(paper_id=paper_id)],
+    )
     client = TestClient(app)
 
     response = client.get("/api/rag/traces/by-paper/12?limit=5")

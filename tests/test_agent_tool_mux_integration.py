@@ -1,7 +1,7 @@
 import asyncio
 
 from app.services.agent_service import AgentService
-from app.services.tool_mux import ToolMux, MuxToolRegistry
+from app.services.tool_mux import MuxToolRegistry, ToolMux
 
 
 def run(coro):

@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-from datetime import date
 import json
 import re
+from datetime import date
 from typing import Any
 
-from app.core.llm_client import LLMClientError, OpenAICompatibleClient
 from app.agent.tool_registry import TOOL_PARAMETER_SCHEMAS
+from app.core.llm_client import LLMClientError, OpenAICompatibleClient
 from app.schemas.conversation import ConversationState, ConversationTurn, FollowupResolution
 from app.services.paper_service import PaperService
-
 
 CLEAR_PATTERNS = ("重新开始", "清除上下文", "忘掉刚才", "开始新任务")
 BATCH_INGEST_HELP = (
@@ -61,7 +60,9 @@ class ConversationFollowupService:
 
         return self._not_followup(text, "no_rule_matched")
 
-    def _resolve_with_rules(self, message: str, state: ConversationState) -> FollowupResolution | None:
+    def _resolve_with_rules(
+        self, message: str, state: ConversationState
+    ) -> FollowupResolution | None:
         if self._is_batch_ingest_request(message):
             return self._resolve_batch_ingest(message, state)
 
@@ -86,7 +87,12 @@ class ConversationFollowupService:
             has_time = any(time_range)
             quantity = self._extract_limit(message)
             topic = self._extract_new_topic(message)
-            if has_time or quantity is not None or topic is not None or self._is_continue_search(message):
+            if (
+                has_time
+                or quantity is not None
+                or topic is not None
+                or self._is_continue_search(message)
+            ):
                 args = dict(state.last_arguments)
                 append_mode = self._is_append_search(message, topic=topic, has_time=has_time)
                 desired_total = self._extract_total_limit(message)
@@ -121,7 +127,9 @@ class ConversationFollowupService:
                     args["published_from"] = self._date_to_str(time_range[0])
                     args["published_to"] = self._date_to_str(time_range[1])
                 exclude_urls = self._result_values(state, "url") if append_mode else []
-                exclude_paper_ids = self._result_int_values(state, "paper_id") if append_mode else []
+                exclude_paper_ids = (
+                    self._result_int_values(state, "paper_id") if append_mode else []
+                )
                 exclude_arxiv_ids = [
                     arxiv_id
                     for url in exclude_urls
@@ -153,13 +161,13 @@ class ConversationFollowupService:
                 )
 
         if self._has_pronoun_reference(message) and state.last_focused_paper_id is not None:
-            tool = self._pronoun_tool(message)
-            if tool is not None:
+            pronoun_tool = self._pronoun_tool(message)
+            if pronoun_tool is not None:
                 return FollowupResolution(
                     is_followup=True,
-                    resolved_message=f"{tool} paper_id={state.last_focused_paper_id}",
-                    intent=tool,
-                    tool_name=tool,
+                    resolved_message=f"{pronoun_tool} paper_id={state.last_focused_paper_id}",
+                    intent=pronoun_tool,
+                    tool_name=pronoun_tool,
                     arguments={"paper_id": state.last_focused_paper_id},
                     confidence=0.9,
                     reason="focused_paper_reference",
@@ -190,8 +198,7 @@ class ConversationFollowupService:
                     for item in state.last_result_refs[:10]
                 ],
                 "recent_turns": [
-                    {"role": turn.role, "content": turn.content[:200]}
-                    for turn in recent_turns[-6:]
+                    {"role": turn.role, "content": turn.content[:200]} for turn in recent_turns[-6:]
                 ],
                 "message": message,
             }
@@ -232,7 +239,9 @@ class ConversationFollowupService:
             return None
 
     def _extract_limit(self, message: str) -> int | None:
-        match = re.search(r"(?:只要|再搜|再来|再给我|再补充|补充|换成|给我|多给我)?\s*(\d+)\s*篇", message)
+        match = re.search(
+            r"(?:只要|再搜|再来|再给我|再补充|补充|换成|给我|多给我)?\s*(\d+)\s*篇", message
+        )
         if match:
             return max(1, min(20, int(match.group(1))))
         if "多给我几篇" in message:
@@ -241,14 +250,16 @@ class ConversationFollowupService:
 
     def _is_batch_ingest_request(self, message: str) -> bool:
         has_read_intent = any(
-            phrase in message
-            for phrase in ("深入阅读", "深度阅读", "精读", "读一遍", "进行阅读")
+            phrase in message for phrase in ("深入阅读", "深度阅读", "精读", "读一遍", "进行阅读")
         )
-        has_batch_reference = any(
-            phrase in message
-            for phrase in ("全部", "都", "这几篇", "这些", "这五篇", "这5篇", "刚才")
-        ) or bool(re.search(r"前\s*[一二两三四五六七八九十\d]+\s*篇", message)) \
+        has_batch_reference = (
+            any(
+                phrase in message
+                for phrase in ("全部", "都", "这几篇", "这些", "这五篇", "这5篇", "刚才")
+            )
+            or bool(re.search(r"前\s*[一二两三四五六七八九十\d]+\s*篇", message))
             or bool(re.search(r"第\s*[一二两三四五六七八九十\d]+\s*(?:到|至|-|~)", message))
+        )
         return has_read_intent and has_batch_reference
 
     def _resolve_batch_ingest(
@@ -270,11 +281,13 @@ class ConversationFollowupService:
             return self._direct_reply(BATCH_INGEST_HELP, "batch_ingest_invalid_range")
 
         refs_by_position = {
-            int(item.get("position")): item
+            int(item["position"]): item
             for item in state.last_result_refs
             if item.get("position") is not None and item.get("paper_id") is not None
         }
-        selected = [refs_by_position[position] for position in positions if position in refs_by_position]
+        selected = [
+            refs_by_position[position] for position in positions if position in refs_by_position
+        ]
         if len(selected) != len(positions):
             return self._direct_reply(BATCH_INGEST_HELP, "batch_ingest_position_missing")
         return FollowupResolution(
@@ -296,7 +309,9 @@ class ConversationFollowupService:
         state: ConversationState,
     ) -> tuple[list[int], bool]:
         number = r"[一二两三四五六七八九十\d]+"
-        range_match = re.search(rf"第?\s*({number})\s*(?:到|至|-|~)\s*第?\s*({number})\s*篇", message)
+        range_match = re.search(
+            rf"第?\s*({number})\s*(?:到|至|-|~)\s*第?\s*({number})\s*篇", message
+        )
         if range_match:
             start = self._parse_number(range_match.group(1))
             end = self._parse_number(range_match.group(2))
@@ -319,7 +334,19 @@ class ConversationFollowupService:
     def _parse_number(self, value: str) -> int | None:
         if value.isdigit():
             return int(value)
-        values = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
+        values = {
+            "一": 1,
+            "二": 2,
+            "两": 2,
+            "三": 3,
+            "四": 4,
+            "五": 5,
+            "六": 6,
+            "七": 7,
+            "八": 8,
+            "九": 9,
+            "十": 10,
+        }
         if value in values:
             return values[value]
         if value.startswith("十") and len(value) == 2:
@@ -391,14 +418,19 @@ class ConversationFollowupService:
         return None
 
     def _is_continue_search(self, message: str) -> bool:
-        return any(word in message for word in ("继续", "还有吗", "换一批", "再来", "再给", "补充", "一共"))
+        return any(
+            word in message for word in ("继续", "还有吗", "换一批", "再来", "再给", "补充", "一共")
+        )
 
     def _is_append_search(self, message: str, *, topic: str | None, has_time: bool) -> bool:
         if topic is not None or has_time:
             return False
         if any(word in message for word in ("重新搜索", "重新搜", "重新开始后新搜索", "换个主题")):
             return False
-        return any(word in message for word in ("继续", "还有吗", "换一批", "再来", "再给", "再补充", "补充", "一共"))
+        return any(
+            word in message
+            for word in ("继续", "还有吗", "换一批", "再来", "再给", "再补充", "补充", "一共")
+        )
 
     def _has_search_context(self, state: ConversationState) -> bool:
         return state.last_tool == "search_papers" or bool(state.last_arguments.get("query"))

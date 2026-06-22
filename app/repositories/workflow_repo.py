@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import json
+from datetime import UTC, datetime
 from sqlite3 import Row
 
 from fastapi import HTTPException
@@ -11,7 +11,7 @@ from app.schemas.workflow import WorkflowRunCreate, WorkflowRunDetail, WorkflowR
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _row_to_summary(row: Row) -> WorkflowRunSummary:

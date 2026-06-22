@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import json
-from pathlib import Path
 import re
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 
@@ -16,7 +16,9 @@ class RagEvalRunService:
             return []
 
         safe_limit = max(1, min(limit, 100))
-        paths = sorted(self.runs_dir.glob("*.json"), key=lambda path: path.stat().st_mtime, reverse=True)
+        paths = sorted(
+            self.runs_dir.glob("*.json"), key=lambda path: path.stat().st_mtime, reverse=True
+        )
         items = []
         for path in paths[:safe_limit]:
             modified_at = self._modified_at(path)
@@ -61,9 +63,14 @@ class RagEvalRunService:
         filename: str | None = None,
         modified_at: str | None = None,
     ) -> dict[str, Any]:
-        summary = data.get("summary") if isinstance(data.get("summary"), dict) else {}
+        raw_summary = data.get("summary")
+        summary: dict[str, Any] = raw_summary if isinstance(raw_summary, dict) else {}
         filename_value = filename or str(data.get("filename") or "")
-        run_id = filename_value.removesuffix(".json") if filename_value else str(data.get("run_id") or "")
+        run_id = (
+            filename_value.removesuffix(".json")
+            if filename_value
+            else str(data.get("run_id") or "")
+        )
         return {
             "run_id": run_id,
             "filename": filename_value,
@@ -88,4 +95,4 @@ class RagEvalRunService:
         return bool(re.fullmatch(r"[A-Za-z0-9_.-]+", run_id))
 
     def _modified_at(self, path: Path) -> str:
-        return datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat()
+        return datetime.fromtimestamp(path.stat().st_mtime, tz=UTC).isoformat()

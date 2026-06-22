@@ -1,8 +1,8 @@
-from pathlib import Path
 import json
 import re
 import ssl
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -83,7 +83,7 @@ class ArchiveService:
         self.ensure_dirs()
         safe_topic = re.sub(r"[^a-zA-Z0-9\u4e00-\u9fff]+", "-", topic or "all").strip("-")
         safe_topic = safe_topic[:60] or "all"
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
         path = self.knowledge_dir / f"{timestamp}-{safe_topic}.md"
         path.write_text(content, encoding="utf-8")
         return str(path)
@@ -97,7 +97,7 @@ class ArchiveService:
         self.ensure_dirs()
         safe_topic = re.sub(r"[^a-zA-Z0-9\u4e00-\u9fff]+", "-", topic or "all").strip("-")
         safe_topic = safe_topic[:60] or "all"
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
         markdown_path = self.innovation_dir / f"{timestamp}-{safe_topic}.md"
         json_path = self.innovation_dir / f"{timestamp}-{safe_topic}.json"
         markdown_path.write_text(markdown_content, encoding="utf-8")

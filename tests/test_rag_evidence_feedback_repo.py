@@ -1,12 +1,7 @@
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.core import database
 from app.repositories.rag_evidence_feedback_repo import RagEvidenceFeedbackRepository
@@ -20,7 +15,9 @@ def evidence_repo(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> RagEvidenc
     return RagEvidenceFeedbackRepository()
 
 
-def test_rag_evidence_feedback_repo_create_and_latest(evidence_repo: RagEvidenceFeedbackRepository) -> None:
+def test_rag_evidence_feedback_repo_create_and_latest(
+    evidence_repo: RagEvidenceFeedbackRepository,
+) -> None:
     first = evidence_repo.create_evidence_feedback(
         trace_id="trace_1",
         chunk_id="chunk_1",
@@ -44,10 +41,18 @@ def test_rag_evidence_feedback_repo_create_and_latest(evidence_repo: RagEvidence
     assert latest.relevance_label == "relevant"
 
 
-def test_rag_evidence_feedback_repo_list_by_trace(evidence_repo: RagEvidenceFeedbackRepository) -> None:
-    evidence_repo.create_evidence_feedback(trace_id="trace_1", chunk_id="chunk_1", rank=1, relevance_score=2)
-    evidence_repo.create_evidence_feedback(trace_id="trace_1", chunk_id="chunk_2", rank=2, relevance_score=1)
-    evidence_repo.create_evidence_feedback(trace_id="trace_2", chunk_id="chunk_3", rank=1, relevance_score=0)
+def test_rag_evidence_feedback_repo_list_by_trace(
+    evidence_repo: RagEvidenceFeedbackRepository,
+) -> None:
+    evidence_repo.create_evidence_feedback(
+        trace_id="trace_1", chunk_id="chunk_1", rank=1, relevance_score=2
+    )
+    evidence_repo.create_evidence_feedback(
+        trace_id="trace_1", chunk_id="chunk_2", rank=2, relevance_score=1
+    )
+    evidence_repo.create_evidence_feedback(
+        trace_id="trace_2", chunk_id="chunk_3", rank=1, relevance_score=0
+    )
 
     items = evidence_repo.list_feedback_by_trace("trace_1")
 
@@ -55,10 +60,18 @@ def test_rag_evidence_feedback_repo_list_by_trace(evidence_repo: RagEvidenceFeed
     assert {item.chunk_id for item in items} == {"chunk_1", "chunk_2"}
 
 
-def test_rag_evidence_feedback_repo_summarize_uses_latest(evidence_repo: RagEvidenceFeedbackRepository) -> None:
-    evidence_repo.create_evidence_feedback(trace_id="trace_1", chunk_id="chunk_1", rank=1, relevance_score=0)
-    evidence_repo.create_evidence_feedback(trace_id="trace_1", chunk_id="chunk_1", rank=1, relevance_score=2)
-    evidence_repo.create_evidence_feedback(trace_id="trace_1", chunk_id="chunk_2", rank=2, relevance_score=1)
+def test_rag_evidence_feedback_repo_summarize_uses_latest(
+    evidence_repo: RagEvidenceFeedbackRepository,
+) -> None:
+    evidence_repo.create_evidence_feedback(
+        trace_id="trace_1", chunk_id="chunk_1", rank=1, relevance_score=0
+    )
+    evidence_repo.create_evidence_feedback(
+        trace_id="trace_1", chunk_id="chunk_1", rank=1, relevance_score=2
+    )
+    evidence_repo.create_evidence_feedback(
+        trace_id="trace_1", chunk_id="chunk_2", rank=2, relevance_score=1
+    )
 
     summary = evidence_repo.summarize_evidence_feedback()
 

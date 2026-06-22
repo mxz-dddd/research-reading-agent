@@ -3,10 +3,10 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from app.schemas.workflow import (
     ResearchWorkflowRequest,
     ResearchWorkflowResponse,
+    WorkflowReportResponse,
     WorkflowRunDetailResponse,
     WorkflowRunHistoryResponse,
     WorkflowRunLatestResponse,
-    WorkflowReportResponse,
 )
 from app.services.research_workflow_service import ResearchWorkflowService
 from app.services.workflow_job_service import workflow_job_store
@@ -59,12 +59,16 @@ def get_workflow_job(job_id: str) -> dict:
 def get_latest_workflow() -> WorkflowRunLatestResponse:
     run = workflow_service.latest_workflow()
     if run is None:
-        return WorkflowRunLatestResponse(success=False, data=None, message="还没有 workflow run 记录")
+        return WorkflowRunLatestResponse(
+            success=False, data=None, message="还没有 workflow run 记录"
+        )
     return WorkflowRunLatestResponse(success=True, data=run)
 
 
 @router.get("/history", response_model=WorkflowRunHistoryResponse)
-def list_workflow_history(limit: int = Query(default=10, ge=1, le=100)) -> WorkflowRunHistoryResponse:
+def list_workflow_history(
+    limit: int = Query(default=10, ge=1, le=100),
+) -> WorkflowRunHistoryResponse:
     return WorkflowRunHistoryResponse(
         success=True,
         items=workflow_service.list_workflow_history(limit=limit),
@@ -83,4 +87,6 @@ def get_workflow_report(run_id: str) -> WorkflowReportResponse:
 
 @router.get("/{run_id}", response_model=WorkflowRunDetailResponse)
 def get_workflow_detail(run_id: str) -> WorkflowRunDetailResponse:
-    return WorkflowRunDetailResponse(success=True, data=workflow_service.get_workflow_detail(run_id))
+    return WorkflowRunDetailResponse(
+        success=True, data=workflow_service.get_workflow_detail(run_id)
+    )

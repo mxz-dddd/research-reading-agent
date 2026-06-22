@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from types import SimpleNamespace
 from tempfile import TemporaryDirectory
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, cast
 
 from app.core import database
 from app.repositories.rag_repo import RagChunkRepository
 from app.schemas.rag import RagChunkCreate, RagSearchChunk
-
 
 DEFAULT_CASES_PATH = Path(__file__).with_name("rag_eval_cases.json")
 
@@ -101,7 +100,10 @@ def run_evaluation(
     original_settings = database.settings
     try:
         with TemporaryDirectory() as tmp_dir:
-            database.settings = SimpleNamespace(database_path=str(Path(tmp_dir) / "rag_eval.db"))
+            database.settings = cast(
+                Any,
+                SimpleNamespace(database_path=str(Path(tmp_dir) / "rag_eval.db")),
+            )
             database.init_db()
             repo = RagChunkRepository()
             seed_eval_chunks(repo)

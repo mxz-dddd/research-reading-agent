@@ -1,13 +1,10 @@
 import json
 import ssl
 from typing import Any
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
 
 import certifi
 from fastapi import HTTPException
 
-from app.core.config import settings
 from app.core.llm_client import LLMClientError, OpenAICompatibleClient
 from app.repositories.knowledge_repo import KnowledgeRepository
 from app.repositories.paper_repo import PaperRepository
@@ -156,7 +153,9 @@ JSON 字段：
             tree_lines.append(f"### {category}")
             category_papers = grouped[category] or papers[:1]
             for paper in category_papers:
-                summary = paper.deep_summary or paper.screening_summary or paper.abstract or "暂无摘要"
+                summary = (
+                    paper.deep_summary or paper.screening_summary or paper.abstract or "暂无摘要"
+                )
                 tree_lines.append(f"- {paper_label(paper)}：{summary[:180]}...")
             tree_lines.append("")
         tree_lines.extend(
@@ -198,7 +197,13 @@ JSON 字段：
             for paper in (grouped[category] or [])[:4]:
                 mindmap_lines.append(f"      P{paper.id} {self._short_title(paper.title)}")
 
-        flow_lines = ["flowchart TD", "  A[先读背景与综述] --> B[理解核心问题]", "  B --> C[学习关键方法]", "  C --> D[检查实验与验证]", "  D --> E[应用扩展与开放问题]"]
+        flow_lines = [
+            "flowchart TD",
+            "  A[先读背景与综述] --> B[理解核心问题]",
+            "  B --> C[学习关键方法]",
+            "  C --> D[检查实验与验证]",
+            "  D --> E[应用扩展与开放问题]",
+        ]
         for paper in sorted_papers[:6]:
             flow_lines.append(f"  P{paper.id}[P{paper.id} {self._short_title(paper.title)}] --> C")
 
@@ -229,7 +234,7 @@ JSON 字段：
         generation_method: str,
         artifact_data: dict[str, str],
     ) -> str:
-        return f"""# 知识树归档：{topic or '全部已接收论文'}
+        return f"""# 知识树归档：{topic or "全部已接收论文"}
 
 - 来源论文数：{source_paper_count}
 - 生成方式：{generation_method}

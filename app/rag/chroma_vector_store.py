@@ -18,9 +18,10 @@ class ChromaVectorStore:
         self._client = chromadb.PersistentClient(path=persist_directory)
 
     def _collection(self, provider_key: str) -> Any:
-        safe_name = "pw_" + "".join(
-            character if character.isalnum() else "_" for character in provider_key
-        )[:60]
+        safe_name = (
+            "pw_"
+            + "".join(character if character.isalnum() else "_" for character in provider_key)[:60]
+        )
         return self._client.get_or_create_collection(name=safe_name)
 
     def get_vectors(self, chunk_ids: list[str], provider_key: str) -> dict[str, list[float]]:
@@ -28,7 +29,9 @@ class ChromaVectorStore:
             return {}
         data = self._collection(provider_key).get(ids=chunk_ids, include=["embeddings"])
         result: dict[str, list[float]] = {}
-        for chunk_id, vector in zip(data.get("ids", []), data.get("embeddings") or []):
+        for chunk_id, vector in zip(
+            data.get("ids", []), data.get("embeddings") or [], strict=False
+        ):
             if vector is not None:
                 result[chunk_id] = [float(value) for value in vector]
         return result

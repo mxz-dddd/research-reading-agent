@@ -2,8 +2,6 @@ import json
 import logging
 import ssl
 from typing import Any
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
 
 import certifi
 from fastapi import HTTPException
@@ -68,7 +66,11 @@ class AgentOrchestrator:
     ) -> AgentQueryResponse:
         tool_name = self._normalize_tool_name(route["tool_name"])
         arguments = dict(route.get("arguments", {}))
-        intent = tool_name if route.get("intent") in {"read_paper", "read_papers"} else route.get("intent") or tool_name
+        intent = (
+            tool_name
+            if route.get("intent") in {"read_paper", "read_papers"}
+            else route.get("intent") or tool_name
+        )
 
         try:
             arguments = self._resolve_arguments(
@@ -189,4 +191,3 @@ class AgentOrchestrator:
 
     def _ssl_context(self) -> ssl.SSLContext:
         return ssl.create_default_context(cafile=certifi.where())
-

@@ -1,4 +1,5 @@
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from fastapi import HTTPException
 
@@ -14,7 +15,6 @@ from app.services.rag_evaluation_service import RagEvaluationService
 from app.services.rag_service import RagService
 from app.services.research_workflow_service import ResearchWorkflowService
 from app.services.workflow_report_service import WorkflowReportService
-
 
 # 工具的 LLM 面向参数 schema：单一事实源。
 # 注意这是“给 LLM 看”的参数（例如包含 ordinal，由 argument_resolver 解析为 paper_id），
@@ -153,10 +153,7 @@ class ToolRegistry:
         extra = [name for name in TOOL_PARAMETER_SCHEMAS if name not in self.tools]
         if extra:
             raise ValueError(f"以下参数 schema 对应的工具未注册：{extra}")
-        return [
-            build_openai_tool_schema(name, TOOL_PARAMETER_SCHEMAS[name])
-            for name in self.tools
-        ]
+        return [build_openai_tool_schema(name, TOOL_PARAMETER_SCHEMAS[name]) for name in self.tools]
 
     def search_papers(
         self,

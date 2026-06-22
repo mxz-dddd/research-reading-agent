@@ -1,10 +1,4 @@
 import json
-import sys
-from pathlib import Path
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.agent.multi_step import MultiStepOrchestrator, _to_chat_tools
 from app.core.llm_client import LLMClientError, OpenAICompatibleClient
@@ -56,7 +50,9 @@ def _text_response(text: str) -> dict:
 
 class ScriptedClient(OpenAICompatibleClient):
     def __init__(self, responses: list) -> None:
-        super().__init__(api_key="fake-key", model="fake-model", base_url="https://example.invalid/v1")
+        super().__init__(
+            api_key="fake-key", model="fake-model", base_url="https://example.invalid/v1"
+        )
         self._responses = list(responses)
         self.requests: list[list[dict]] = []
 

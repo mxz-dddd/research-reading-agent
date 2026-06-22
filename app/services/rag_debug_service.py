@@ -4,8 +4,7 @@ from typing import Any
 from app.schemas.context import ContextPackRead
 from app.schemas.rag import RagSearchChunk
 
-
-EMPTY_CONTEXT_SUMMARY = {
+EMPTY_CONTEXT_SUMMARY: dict[str, Any] = {
     "context_pack_id": None,
     "item_count": 0,
     "estimated_tokens": 0,
@@ -13,7 +12,7 @@ EMPTY_CONTEXT_SUMMARY = {
     "item_type_counts": {},
 }
 
-EMPTY_PIPELINE_SUMMARY = {
+EMPTY_PIPELINE_SUMMARY: dict[str, Any] = {
     "retrieval_mode": None,
     "sparse_candidate_count": 0,
     "dense_candidate_count": 0,

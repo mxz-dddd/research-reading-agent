@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -12,12 +12,16 @@ from app.services.conversation_context_service import ConversationContextService
 
 @pytest.fixture
 def conversation_service(tmp_path, monkeypatch):
-    monkeypatch.setattr(database, "settings", SimpleNamespace(database_path=str(tmp_path / "test.db")))
+    monkeypatch.setattr(
+        database, "settings", SimpleNamespace(database_path=str(tmp_path / "test.db"))
+    )
     init_db()
     return ConversationContextService(ConversationRepository())
 
 
-def test_save_and_reload_search_state_persists_after_service_recreate(conversation_service, tmp_path, monkeypatch) -> None:
+def test_save_and_reload_search_state_persists_after_service_recreate(
+    conversation_service, tmp_path, monkeypatch
+) -> None:
     response = AgentQueryResponse(
         success=True,
         intent="search_papers",
@@ -36,7 +40,9 @@ def test_save_and_reload_search_state_persists_after_service_recreate(conversati
         ],
     )
 
-    conversation_service.save_user_turn(session_id="s1", message="搜索5篇VLF传播时延论文", message_id="m1")
+    conversation_service.save_user_turn(
+        session_id="s1", message="搜索5篇VLF传播时延论文", message_id="m1"
+    )
     conversation_service.update_from_agent_response(
         session_id="s1",
         channel="feishu",
@@ -71,7 +77,13 @@ def test_clear_session_removes_turns_and_state(conversation_service) -> None:
         success=True,
         intent="search_papers",
         chosen_tool="search_papers",
-        tool_calls=[AgentToolCall(tool_name="search_papers", arguments={"topic": "VLF", "max_results": 5}, success=True)],
+        tool_calls=[
+            AgentToolCall(
+                tool_name="search_papers",
+                arguments={"topic": "VLF", "max_results": 5},
+                success=True,
+            )
+        ],
         final_answer="ok",
         data=[],
     )
@@ -94,7 +106,7 @@ def test_clear_session_removes_turns_and_state(conversation_service) -> None:
 
 
 def test_expired_state_is_ignored(conversation_service) -> None:
-    expired = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+    expired = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
     conversation_service.repo.upsert_state(
         session_id="s1",
         channel="feishu",
@@ -122,12 +134,20 @@ def test_session_lock_serializes_updates(conversation_service) -> None:
     assert len(conversation_service.recent_turns("s1")) == 1
 
 
-def test_append_search_accumulates_refs_and_replace_search_resets_them(conversation_service) -> None:
+def test_append_search_accumulates_refs_and_replace_search_resets_them(
+    conversation_service,
+) -> None:
     first = AgentQueryResponse(
         success=True,
         intent="search_papers",
         chosen_tool="search_papers",
-        tool_calls=[AgentToolCall(tool_name="search_papers", arguments={"topic": "VLF", "max_results": 2}, success=True)],
+        tool_calls=[
+            AgentToolCall(
+                tool_name="search_papers",
+                arguments={"topic": "VLF", "max_results": 2},
+                success=True,
+            )
+        ],
         final_answer="first",
         data=[
             {"id": 101, "title": "P1", "url": "https://arxiv.org/abs/1"},
@@ -135,14 +155,26 @@ def test_append_search_accumulates_refs_and_replace_search_resets_them(conversat
         ],
     )
     first_state = conversation_service.update_from_agent_response(
-        session_id="append", channel="feishu", chat_id="c", user_id="u", thread_id=None,
-        user_message="搜索", assistant_text="first", response=first,
+        session_id="append",
+        channel="feishu",
+        chat_id="c",
+        user_id="u",
+        thread_id=None,
+        user_message="搜索",
+        assistant_text="first",
+        response=first,
     )
     appended = AgentQueryResponse(
         success=True,
         intent="search_papers",
         chosen_tool="search_papers",
-        tool_calls=[AgentToolCall(tool_name="search_papers", arguments={"topic": "VLF", "max_results": 2, "append_mode": True}, success=True)],
+        tool_calls=[
+            AgentToolCall(
+                tool_name="search_papers",
+                arguments={"topic": "VLF", "max_results": 2, "append_mode": True},
+                success=True,
+            )
+        ],
         final_answer="more",
         data=[
             {"id": 103, "title": "P3", "url": "https://arxiv.org/abs/3"},
@@ -150,8 +182,15 @@ def test_append_search_accumulates_refs_and_replace_search_resets_them(conversat
         ],
     )
     appended_state = conversation_service.update_from_agent_response(
-        session_id="append", channel="feishu", chat_id="c", user_id="u", thread_id=None,
-        user_message="再来2篇", assistant_text="more", response=appended, previous_state=first_state,
+        session_id="append",
+        channel="feishu",
+        chat_id="c",
+        user_id="u",
+        thread_id=None,
+        user_message="再来2篇",
+        assistant_text="more",
+        response=appended,
+        previous_state=first_state,
     )
 
     assert [item["position"] for item in appended_state.last_result_refs] == [1, 2, 3, 4]
@@ -161,13 +200,26 @@ def test_append_search_accumulates_refs_and_replace_search_resets_them(conversat
         success=True,
         intent="search_papers",
         chosen_tool="search_papers",
-        tool_calls=[AgentToolCall(tool_name="search_papers", arguments={"topic": "solar flare", "max_results": 1}, success=True)],
+        tool_calls=[
+            AgentToolCall(
+                tool_name="search_papers",
+                arguments={"topic": "solar flare", "max_results": 1},
+                success=True,
+            )
+        ],
         final_answer="replacement",
         data=[{"id": 201, "title": "New", "url": "https://arxiv.org/abs/new"}],
     )
     replaced_state = conversation_service.update_from_agent_response(
-        session_id="append", channel="feishu", chat_id="c", user_id="u", thread_id=None,
-        user_message="换个主题", assistant_text="replacement", response=replacement, previous_state=appended_state,
+        session_id="append",
+        channel="feishu",
+        chat_id="c",
+        user_id="u",
+        thread_id=None,
+        user_message="换个主题",
+        assistant_text="replacement",
+        response=replacement,
+        previous_state=appended_state,
     )
 
     assert replaced_state.last_result_refs == [
@@ -177,25 +229,40 @@ def test_append_search_accumulates_refs_and_replace_search_resets_them(conversat
 
 def test_batch_ingest_preserves_result_refs_and_tracks_last_success(conversation_service) -> None:
     refs = [
-        {"position": index, "paper_id": 100 + index, "title": f"P{index}", "url": f"https://arxiv.org/abs/{index}"}
+        {
+            "position": index,
+            "paper_id": 100 + index,
+            "title": f"P{index}",
+            "url": f"https://arxiv.org/abs/{index}",
+        }
         for index in range(1, 6)
     ]
     previous = conversation_service.repo.upsert_state(
-        session_id="batch", channel="feishu", chat_id="c", user_id="u", thread_id=None,
-        last_intent="search_papers", last_tool="search_papers",
-        last_arguments={"query": "VLF", "limit": 5}, last_result_refs=refs,
-        last_user_message="search", last_assistant_summary="found", last_focused_paper_id=101,
-        expires_at=(datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+        session_id="batch",
+        channel="feishu",
+        chat_id="c",
+        user_id="u",
+        thread_id=None,
+        last_intent="search_papers",
+        last_tool="search_papers",
+        last_arguments={"query": "VLF", "limit": 5},
+        last_result_refs=refs,
+        last_user_message="search",
+        last_assistant_summary="found",
+        last_focused_paper_id=101,
+        expires_at=(datetime.now(UTC) + timedelta(hours=1)).isoformat(),
     )
     response = AgentQueryResponse(
         success=True,
         intent="batch_ingest_papers",
         chosen_tool="batch_ingest_papers",
-        tool_calls=[AgentToolCall(
-            tool_name="batch_ingest_papers",
-            arguments={"paper_ids": [101, 102, 103], "source_positions": [1, 2, 3]},
-            success=True,
-        )],
+        tool_calls=[
+            AgentToolCall(
+                tool_name="batch_ingest_papers",
+                arguments={"paper_ids": [101, 102, 103], "source_positions": [1, 2, 3]},
+                success=True,
+            )
+        ],
         final_answer="done",
         data={
             "items": [
@@ -207,8 +274,15 @@ def test_batch_ingest_preserves_result_refs_and_tracks_last_success(conversation
     )
 
     state = conversation_service.update_from_agent_response(
-        session_id="batch", channel="feishu", chat_id="c", user_id="u", thread_id=None,
-        user_message="全部深入阅读", assistant_text="done", response=response, previous_state=previous,
+        session_id="batch",
+        channel="feishu",
+        chat_id="c",
+        user_id="u",
+        thread_id=None,
+        user_message="全部深入阅读",
+        assistant_text="done",
+        response=response,
+        previous_state=previous,
     )
 
     assert state.last_tool == "batch_ingest_papers"

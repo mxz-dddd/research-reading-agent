@@ -23,17 +23,29 @@ def test_smoke_script_imports() -> None:
 def test_join_url_handles_slashes() -> None:
     module = load_smoke_module()
 
-    assert module._join_url("http://localhost:8000/", "/api/rag/search") == "http://localhost:8000/api/rag/search"
-    assert module._join_url("http://localhost:8000", "api/rag/search") == "http://localhost:8000/api/rag/search"
+    assert (
+        module._join_url("http://localhost:8000/", "/api/rag/search")
+        == "http://localhost:8000/api/rag/search"
+    )
+    assert (
+        module._join_url("http://localhost:8000", "api/rag/search")
+        == "http://localhost:8000/api/rag/search"
+    )
 
 
 def test_extract_context_pack_id_supports_top_level_and_nested() -> None:
     module = load_smoke_module()
 
     assert module._extract_context_pack_id({"context_pack_id": "ctx-top"}) == "ctx-top"
-    assert module._extract_context_pack_id({"context_pack": {"context_pack_id": "ctx-nested"}}) == "ctx-nested"
+    assert (
+        module._extract_context_pack_id({"context_pack": {"context_pack_id": "ctx-nested"}})
+        == "ctx-nested"
+    )
     assert module._extract_context_pack_id({"context_pack": {"id": "ctx-id"}}) == "ctx-id"
-    assert module._extract_context_pack_id({"missing": True}, {"context_pack_id": "ctx-second"}) == "ctx-second"
+    assert (
+        module._extract_context_pack_id({"missing": True}, {"context_pack_id": "ctx-second"})
+        == "ctx-second"
+    )
     assert module._extract_context_pack_id({"missing": True}) is None
 
 

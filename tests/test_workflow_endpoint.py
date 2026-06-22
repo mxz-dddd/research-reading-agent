@@ -1,13 +1,7 @@
-import sys
-from pathlib import Path
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.api import routes_workflow
 from app.main import app
@@ -73,8 +67,12 @@ def test_workflow_endpoint_response_shape(monkeypatch: pytest.MonkeyPatch) -> No
     assert data["error"] is None
 
 
-def test_workflow_endpoint_supports_dry_run_without_external_calls(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(routes_workflow.workflow_service.workflow_repo, "create", lambda payload: None)
+def test_workflow_endpoint_supports_dry_run_without_external_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        routes_workflow.workflow_service.workflow_repo, "create", lambda payload: None
+    )
     client = TestClient(app)
 
     response = client.post(

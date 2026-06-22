@@ -192,6 +192,7 @@ Rules:
     def _normalize_terms(self, value: Any) -> tuple[str, ...]:
         if value is None:
             return ()
+        raw_terms: list[Any] | tuple[Any, ...]
         if isinstance(value, str):
             raw_terms = [value]
         elif isinstance(value, list | tuple):
@@ -221,7 +222,16 @@ Rules:
         for token in tokens:
             if token.upper() in {"VLF", "PNT", "GPS", "RAG", "LLM", "LWPC", "GNSS", "SAR", "EEG"}:
                 required.append(token.upper())
-            elif token.lower() not in {"paper", "papers", "research", "study", "related", "several", "recent", "search"}:
+            elif token.lower() not in {
+                "paper",
+                "papers",
+                "research",
+                "study",
+                "related",
+                "several",
+                "recent",
+                "search",
+            }:
                 optional.append(token)
         phrases = [
             phrase
@@ -253,8 +263,13 @@ Rules:
             candidates.append((match.start(), match.end(), match.group(0)))
 
         selected: list[tuple[int, int, str]] = []
-        for start, end, target in sorted(candidates, key=lambda item: (item[0], -(item[1] - item[0]))):
-            if any(start < chosen_end and end > chosen_start for chosen_start, chosen_end, _ in selected):
+        for start, end, target in sorted(
+            candidates, key=lambda item: (item[0], -(item[1] - item[0]))
+        ):
+            if any(
+                start < chosen_end and end > chosen_start
+                for chosen_start, chosen_end, _ in selected
+            ):
                 continue
             selected.append((start, end, target))
 

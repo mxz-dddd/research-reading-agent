@@ -1,12 +1,7 @@
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.core import database
 from app.repositories.rag_repo import RagChunkRepository
@@ -21,7 +16,9 @@ def rag_repo(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> RagChunkReposit
     return RagChunkRepository()
 
 
-def sample_chunk(chunk_id: str = "chunk-1", content: str = "Propagation error correction method") -> RagChunkCreate:
+def sample_chunk(
+    chunk_id: str = "chunk-1", content: str = "Propagation error correction method"
+) -> RagChunkCreate:
     return RagChunkCreate(
         chunk_id=chunk_id,
         paper_id="12",
@@ -48,7 +45,9 @@ def test_rag_repo_create_and_list_chunks(rag_repo: RagChunkRepository) -> None:
 
 def test_rag_repo_create_and_search_contextual_fields(rag_repo: RagChunkRepository) -> None:
     payload = sample_chunk("chunk-context", "Timing systems use correction.")
-    payload.contextual_header = "Paper: Fake Paper\nSection: Propagation Error\nChunk: 0\nSource: local_text"
+    payload.contextual_header = (
+        "Paper: Fake Paper\nSection: Propagation Error\nChunk: 0\nSource: local_text"
+    )
     payload.section_title = "Propagation Error"
     payload.content_for_embedding = payload.contextual_header + "\n" + payload.content
     payload.token_count = 12

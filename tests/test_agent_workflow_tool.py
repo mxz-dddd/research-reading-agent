@@ -1,13 +1,7 @@
-import sys
-from pathlib import Path
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.agent.orchestrator import AgentOrchestrator
 from app.agent.tool_registry import ToolRegistry
@@ -21,14 +15,38 @@ def fake_tool_call(self: ToolRegistry, tool_name: str, **kwargs: Any) -> Any:
         "topic": kwargs["topic"],
         "dry_run": kwargs.get("dry_run", False),
         "rag_indexed_papers": [
-            {"paper_id": "1", "success": kwargs.get("index_rag", True), "chunk_count": 3, "warnings": [], "error": None}
+            {
+                "paper_id": "1",
+                "success": kwargs.get("index_rag", True),
+                "chunk_count": 3,
+                "warnings": [],
+                "error": None,
+            }
         ]
         if kwargs.get("index_rag", True)
         else [],
         "steps": [
-            {"step": "search_papers", "success": True, "summary": "fake search", "data": {}, "error": None},
-            {"step": "accept_top_k", "success": True, "summary": "fake accept", "data": {}, "error": None},
-            {"step": "index_rag", "success": True, "summary": "fake rag", "data": {}, "error": None},
+            {
+                "step": "search_papers",
+                "success": True,
+                "summary": "fake search",
+                "data": {},
+                "error": None,
+            },
+            {
+                "step": "accept_top_k",
+                "success": True,
+                "summary": "fake accept",
+                "data": {},
+                "error": None,
+            },
+            {
+                "step": "index_rag",
+                "success": True,
+                "summary": "fake rag",
+                "data": {},
+                "error": None,
+            },
         ],
         "searched_papers": [{"id": 1, "title": "Fake Paper"}],
         "accepted_papers": [{"id": 1, "title": "Fake Paper"}],

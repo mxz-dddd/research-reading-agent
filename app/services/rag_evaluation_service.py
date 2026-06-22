@@ -1,5 +1,5 @@
-from typing import Any
 import math
+from typing import Any
 
 from app.repositories.rag_evidence_feedback_repo import (
     RAG_EVIDENCE_LABEL_BY_SCORE,
@@ -8,7 +8,7 @@ from app.repositories.rag_evidence_feedback_repo import (
 )
 from app.repositories.rag_feedback_repo import RAG_RELEVANCE_LABELS, RagFeedbackRepository
 from app.repositories.rag_trace_repo import RagTraceRepository
-from app.schemas.rag import RagEvidenceFeedbackRead, RagTraceFeedbackRead, RagTraceRead
+from app.schemas.rag import RagEvidenceFeedbackRead, RagTraceFeedbackRead
 
 
 class RagEvaluationService:
@@ -73,7 +73,9 @@ class RagEvaluationService:
                 "error": "trace not found",
             }
 
-        feedback: RagTraceFeedbackRead | None = self.feedback_repo.get_latest_feedback_for_trace(trace_id)
+        feedback: RagTraceFeedbackRead | None = self.feedback_repo.get_latest_feedback_for_trace(
+            trace_id
+        )
         message = None if feedback else "该 trace 暂无人工 feedback。"
         return {
             "success": True,
@@ -104,12 +106,22 @@ class RagEvaluationService:
 
         normalized = self._normalize_evidence_label(relevance_score, relevance_label)
         if normalized["error"]:
-            return {"success": False, "data": None, "message": "evidence relevance 非法。", "error": normalized["error"]}
+            return {
+                "success": False,
+                "data": None,
+                "message": "evidence relevance 非法。",
+                "error": normalized["error"],
+            }
 
         evidence = trace.evidence or []
         resolved = self._resolve_evidence_ref(evidence=evidence, chunk_id=chunk_id, rank=rank)
         if resolved["error"]:
-            return {"success": False, "data": None, "message": resolved["message"], "error": resolved["error"]}
+            return {
+                "success": False,
+                "data": None,
+                "message": resolved["message"],
+                "error": resolved["error"],
+            }
 
         feedback = self.evidence_feedback_repo.create_evidence_feedback(
             trace_id=trace_id,
@@ -185,19 +197,43 @@ class RagEvaluationService:
                 }
             )
         message = None if latest else "该 trace 暂无 evidence-level feedback。"
-        return {"success": True, "trace_id": trace_id, "evidence": evidence_rows, "message": message, "error": None}
+        return {
+            "success": True,
+            "trace_id": trace_id,
+            "evidence": evidence_rows,
+            "message": message,
+            "error": None,
+        }
 
-    def _normalize_evidence_label(self, relevance_score: int, relevance_label: str | None) -> dict[str, Any]:
+    def _normalize_evidence_label(
+        self, relevance_score: int, relevance_label: str | None
+    ) -> dict[str, Any]:
         if relevance_score not in RAG_EVIDENCE_LABEL_BY_SCORE:
-            return {"score": relevance_score, "label": relevance_label, "error": "relevance_score must be 0, 1, or 2"}
+            return {
+                "score": relevance_score,
+                "label": relevance_label,
+                "error": "relevance_score must be 0, 1, or 2",
+            }
         if relevance_label is None:
-            return {"score": relevance_score, "label": RAG_EVIDENCE_LABEL_BY_SCORE[relevance_score], "error": None}
+            return {
+                "score": relevance_score,
+                "label": RAG_EVIDENCE_LABEL_BY_SCORE[relevance_score],
+                "error": None,
+            }
         normalized_label = relevance_label.strip().lower()
         if normalized_label not in RAG_EVIDENCE_SCORE_BY_LABEL:
-            return {"score": relevance_score, "label": normalized_label, "error": "invalid relevance_label"}
+            return {
+                "score": relevance_score,
+                "label": normalized_label,
+                "error": "invalid relevance_label",
+            }
         expected_score = RAG_EVIDENCE_SCORE_BY_LABEL[normalized_label]
         if expected_score != relevance_score:
-            return {"score": relevance_score, "label": normalized_label, "error": "relevance_score and relevance_label mismatch"}
+            return {
+                "score": relevance_score,
+                "label": normalized_label,
+                "error": "relevance_score and relevance_label mismatch",
+            }
         return {"score": relevance_score, "label": normalized_label, "error": None}
 
     def _resolve_evidence_ref(
@@ -214,7 +250,10 @@ class RagEvaluationService:
             for index, item in enumerate(evidence, start=1):
                 if str(item.get("chunk_id")) == str(chunk_id):
                     return {"chunk_id": str(chunk_id), "rank": int(rank or index), "error": None}
-            return {"message": "chunk_id 不属于该 trace 的 evidence。", "error": "chunk not found in trace"}
+            return {
+                "message": "chunk_id 不属于该 trace 的 evidence。",
+                "error": "chunk not found in trace",
+            }
 
         if rank is None:
             return {"message": "请提供 chunk_id 或 rank。", "error": "missing evidence reference"}
@@ -232,7 +271,11 @@ class RagEvaluationService:
         trace_count = len(by_trace)
         metrics: dict[str, float] = {}
         for k in k_values:
-            hits = sum(1 for items in by_trace.values() if any(item.rank <= k and item.relevance_score > 0 for item in items))
+            hits = sum(
+                1
+                for items in by_trace.values()
+                if any(item.rank <= k and item.relevance_score > 0 for item in items)
+            )
             metrics[f"recall_at_{k}"] = hits / trace_count if trace_count else 0.0
 
         reciprocal_ranks = []

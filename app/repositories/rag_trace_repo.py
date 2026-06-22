@@ -1,5 +1,5 @@
-from datetime import datetime, timezone
 import json
+from datetime import UTC, datetime
 from sqlite3 import Row
 
 from app.core.database import get_connection
@@ -7,7 +7,7 @@ from app.schemas.rag import RagTraceCreate, RagTraceRead
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _row_to_trace(row: Row) -> RagTraceRead:
@@ -45,12 +45,16 @@ class RagTraceRepository:
                 ),
             )
             conn.commit()
-            row = conn.execute("SELECT * FROM rag_traces WHERE id = ?", (cursor.lastrowid,)).fetchone()
+            row = conn.execute(
+                "SELECT * FROM rag_traces WHERE id = ?", (cursor.lastrowid,)
+            ).fetchone()
         return _row_to_trace(row)
 
     def get_by_trace_id(self, trace_id: str) -> RagTraceRead | None:
         with get_connection() as conn:
-            row = conn.execute("SELECT * FROM rag_traces WHERE trace_id = ?", (trace_id,)).fetchone()
+            row = conn.execute(
+                "SELECT * FROM rag_traces WHERE trace_id = ?", (trace_id,)
+            ).fetchone()
         return _row_to_trace(row) if row else None
 
     def get_latest(self, limit: int = 10) -> list[RagTraceRead]:

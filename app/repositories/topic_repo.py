@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from sqlite3 import Row
 
 from app.core.database import get_connection
@@ -8,7 +8,7 @@ from app.schemas.topic import TopicCreate, TopicRead
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _row_to_topic(row: Row) -> TopicRead:
@@ -35,7 +35,5 @@ class TopicRepository:
 
     def list(self) -> list[TopicRead]:
         with get_connection() as conn:
-            rows = conn.execute(
-                "SELECT * FROM research_topics ORDER BY created_at DESC"
-            ).fetchall()
+            rows = conn.execute("SELECT * FROM research_topics ORDER BY created_at DESC").fetchall()
         return [_row_to_topic(row) for row in rows]

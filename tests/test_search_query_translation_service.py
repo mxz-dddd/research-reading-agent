@@ -84,7 +84,10 @@ def test_english_query_does_not_call_llm() -> None:
     ("source", "translated"),
     [
         ("甚低频传播时延修正", "VLF propagation delay correction"),
-        ("RAG 检索增强生成在医学问答中的幻觉评估", "RAG retrieval augmented generation hallucination evaluation medical question answering"),
+        (
+            "RAG 检索增强生成在医学问答中的幻觉评估",
+            "RAG retrieval augmented generation hallucination evaluation medical question answering",
+        ),
         ("PNT 场景下 GPS 拒止环境的鲁棒定位", "PNT GPS denied environment robust positioning"),
     ],
 )
@@ -124,7 +127,7 @@ def test_chinese_translation_parses_structured_search_terms() -> None:
 
 
 def test_chinese_translation_strips_quotes_newlines_and_period() -> None:
-    client = FakeClient(reply=json.dumps({"search_query": "\"VLF\npropagation delay.\""}))
+    client = FakeClient(reply=json.dumps({"search_query": '"VLF\npropagation delay."'}))
     service = SearchQueryTranslationService(client=client)
 
     result = service.translate_for_search("VLF 传播时延")
@@ -217,9 +220,7 @@ def test_search_history_records_rule_fallback_method(monkeypatch) -> None:
         client=FakeClient(error=LLMClientError("timeout"))
     )
 
-    papers = service.search_and_store(
-        PaperSearchRequest(topic="甚低频传播时延修正", max_results=5)
-    )
+    papers = service.search_and_store(PaperSearchRequest(topic="甚低频传播时延修正", max_results=5))
 
     assert papers == []
     assert captured["query"] == "VLF propagation delay correction"
@@ -237,7 +238,9 @@ def test_chinese_translation_is_cached() -> None:
     assert len(client.calls) == 1
 
 
-def test_paper_service_uses_effective_english_query_and_preserves_original_history(monkeypatch) -> None:
+def test_paper_service_uses_effective_english_query_and_preserves_original_history(
+    monkeypatch,
+) -> None:
     captured: dict[str, object] = {}
 
     def fake_search_papers(query: str, limit: int, **kwargs):
@@ -257,7 +260,7 @@ def test_paper_service_uses_effective_english_query_and_preserves_original_histo
             ],
             source="arxiv",
             query_level=2,
-            effective_arxiv_query='all:VLF AND (all:delay OR all:correction)',
+            effective_arxiv_query="all:VLF AND (all:delay OR all:correction)",
             attempted_queries=[
                 {"query_level": 1, "effective_arxiv_query": "strict", "success": True},
                 {"query_level": 2, "effective_arxiv_query": "loose", "success": True},
@@ -292,7 +295,9 @@ def test_paper_service_uses_effective_english_query_and_preserves_original_histo
     history = service.paper_repo.histories[0]
     assert history.topic == "甚低频传播时延修正"
     assert "original_query=甚低频传播时延修正" in history.query_text
-    assert "effective_search_query=VLF propagation delay ionospheric correction" in history.query_text
+    assert (
+        "effective_search_query=VLF propagation delay ionospheric correction" in history.query_text
+    )
     assert "was_translated=true" in history.query_text
     assert "translation_method=llm" in history.query_text
     assert "query_level=2" in history.query_text
@@ -368,7 +373,9 @@ def test_feishu_chinese_message_reaches_search_papers_with_english_query(monkeyp
                 "message_id": "msg_search_cn",
                 "chat_id": "oc_1",
                 "message_type": "text",
-                "content": json.dumps({"text": "帮我搜索 1 篇甚低频传播时延修正论文"}, ensure_ascii=False),
+                "content": json.dumps(
+                    {"text": "帮我搜索 1 篇甚低频传播时延修正论文"}, ensure_ascii=False
+                ),
             },
         },
     }
@@ -402,7 +409,10 @@ def test_date_range_parsing_supports_chinese_recent_and_since_year() -> None:
         date(date.today().year - 5, date.today().month, date.today().day),
         date.today(),
     )
-    assert service._extract_published_range("2018 年以来 VLF 论文") == (date(2018, 1, 1), date.today())
+    assert service._extract_published_range("2018 年以来 VLF 论文") == (
+        date(2018, 1, 1),
+        date.today(),
+    )
     assert service._extract_published_range("2020 到 2025 年 VLF 论文") == (
         date(2020, 1, 1),
         date(2025, 12, 31),
@@ -413,7 +423,9 @@ def test_time_and_count_constraints_are_not_sent_to_translation(monkeypatch) -> 
     seen: dict[str, str] = {}
 
     def fake_search_papers(query: str, limit: int, **kwargs):
-        return PaperSearchResult(papers=[], source="arxiv", query_level=1, effective_arxiv_query="all:VLF")
+        return PaperSearchResult(
+            papers=[], source="arxiv", query_level=1, effective_arxiv_query="all:VLF"
+        )
 
     def fake_translate(query: str):
         seen["query"] = query
@@ -429,7 +441,9 @@ def test_time_and_count_constraints_are_not_sent_to_translation(monkeypatch) -> 
     service.paper_repo = FakePaperRepo()
     service.query_translation_service = SimpleNamespace(translate_for_search=fake_translate)
 
-    service.search_and_store(PaperSearchRequest(topic="帮我搜索几篇 VLF 传播时延相关的论文，要近十年的", max_results=3))
+    service.search_and_store(
+        PaperSearchRequest(topic="帮我搜索几篇 VLF 传播时延相关的论文，要近十年的", max_results=3)
+    )
 
     assert seen["query"] == "VLF 传播时延"
 
@@ -477,7 +491,9 @@ def test_existing_same_url_is_reused_without_duplicate_create(monkeypatch) -> No
         )
     )
 
-    papers = service.search_and_store(PaperSearchRequest(topic="VLF propagation delay", max_results=1))
+    papers = service.search_and_store(
+        PaperSearchRequest(topic="VLF propagation delay", max_results=1)
+    )
 
     assert papers == [existing]
     assert service.paper_repo.created == []

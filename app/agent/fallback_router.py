@@ -136,7 +136,11 @@ def route_with_fallback(message: str) -> dict[str, Any]:
         }
 
     if _is_latest_workflow_query(lower):
-        return {"intent": "get_latest_workflow", "tool_name": "get_latest_workflow", "arguments": {}}
+        return {
+            "intent": "get_latest_workflow",
+            "tool_name": "get_latest_workflow",
+            "arguments": {},
+        }
 
     run_id = extract_workflow_run_id(text)
     if run_id:
@@ -146,7 +150,10 @@ def route_with_fallback(message: str) -> dict[str, Any]:
             "arguments": {"run_id": run_id},
         }
 
-    if _has_any(lower, ["完整研究流程", "研究闭环", "完整执行", "完整跑一遍", "一键完成", "从论文搜索到创新点"]):
+    if _has_any(
+        lower,
+        ["完整研究流程", "研究闭环", "完整执行", "完整跑一遍", "一键完成", "从论文搜索到创新点"],
+    ):
         return {
             "intent": "run_research_workflow",
             "tool_name": "run_research_workflow",
@@ -173,8 +180,22 @@ def route_with_fallback(message: str) -> dict[str, Any]:
             "arguments": {"topic": extract_optional_topic(text)},
         }
 
-    if _has_any(lower, ["有哪些已接收", "列出已接收", "已接收论文列表", "列出 accepted", "accepted papers", "可用论文"]):
-        return {"intent": "list_accepted_papers", "tool_name": "list_accepted_papers", "arguments": {}}
+    if _has_any(
+        lower,
+        [
+            "有哪些已接收",
+            "列出已接收",
+            "已接收论文列表",
+            "列出 accepted",
+            "accepted papers",
+            "可用论文",
+        ],
+    ):
+        return {
+            "intent": "list_accepted_papers",
+            "tool_name": "list_accepted_papers",
+            "arguments": {},
+        }
 
     if _has_any(lower, ["接收", "标记为可用", "确认可用", "accept"]):
         return {"intent": "accept_paper", "tool_name": "accept_paper", "arguments": paper_ref}
@@ -183,7 +204,11 @@ def route_with_fallback(message: str) -> dict[str, Any]:
         return {"intent": "ingest_paper", "tool_name": "ingest_paper", "arguments": paper_ref}
 
     if _has_any(lower, ["详情", "详细信息", "detail"]):
-        return {"intent": "get_paper_detail", "tool_name": "get_paper_detail", "arguments": paper_ref}
+        return {
+            "intent": "get_paper_detail",
+            "tool_name": "get_paper_detail",
+            "arguments": paper_ref,
+        }
 
     if _has_any(lower, ["搜索", "查找", "找", "论文", "paper", "search"]):
         return {
@@ -228,7 +253,9 @@ def extract_accept_top_k(text: str) -> int:
 
 
 def extract_search_topic(text: str) -> str:
-    topic = re.sub(r"(帮我|请|搜索|查找|找|论文|paper|papers|search|给我|篇|的)", " ", text, flags=re.I)
+    topic = re.sub(
+        r"(帮我|请|搜索|查找|找|论文|paper|papers|search|给我|篇|的)", " ", text, flags=re.I
+    )
     topic = re.sub(r"\d+", " ", topic)
     topic = re.sub(r"[，,。.!！?？]", " ", topic)
     topic = " ".join(topic.split())
@@ -249,19 +276,25 @@ def extract_workflow_topic(text: str) -> str:
 
 
 def extract_optional_topic(text: str) -> str | None:
-    cleaned = re.sub(r"(根据|当前|已接收|论文|生成|知识树|学习路径|创新点|创新方向|总结|挖掘)", " ", text)
+    cleaned = re.sub(
+        r"(根据|当前|已接收|论文|生成|知识树|学习路径|创新点|创新方向|总结|挖掘)", " ", text
+    )
     cleaned = " ".join(cleaned.split())
     return cleaned or None
 
 
 def extract_dry_run(text: str) -> bool:
     lower = text.lower()
-    return _has_any(lower, ["dry run", "dry_run", "mock"]) or _has_any(text, ["模拟", "不联网", "演示"])
+    return _has_any(lower, ["dry run", "dry_run", "mock"]) or _has_any(
+        text, ["模拟", "不联网", "演示"]
+    )
 
 
 def extract_workflow_index_rag(text: str) -> bool:
     lower = text.lower()
-    return _has_any(lower, ["rag", "检索索引", "检索增强"]) or _has_any(text, ["建立 RAG 索引", "建立检索索引"])
+    return _has_any(lower, ["rag", "检索索引", "检索增强"]) or _has_any(
+        text, ["建立 RAG 索引", "建立检索索引"]
+    )
 
 
 def extract_history_limit(text: str) -> int:
@@ -338,7 +371,9 @@ def extract_evidence_rank(text: str) -> int | None:
 
 def extract_rag_relevance_label(text: str) -> str:
     lower = text.lower()
-    if _has_any(lower, ["partially_relevant", "partial", "部分相关"]) or _has_any(text, ["部分相关"]):
+    if _has_any(lower, ["partially_relevant", "partial", "部分相关"]) or _has_any(
+        text, ["部分相关"]
+    ):
         return "partially_relevant"
     if _has_any(lower, ["irrelevant", "不相关", "无关"]) or _has_any(text, ["不相关", "无关"]):
         return "irrelevant"
@@ -392,24 +427,36 @@ def _is_workflow_history_query(lower: str) -> bool:
 
 
 def _is_generate_workflow_report_query(lower: str) -> bool:
-    return _has_any(lower, ["报告", "report"]) and _has_any(
-        lower,
-        ["生成", "产出", "写", "整理", "归档", "generate"],
-    ) and _has_any(lower, ["workflow", "研究闭环", "研究流程", "run_"])
+    return (
+        _has_any(lower, ["报告", "report"])
+        and _has_any(
+            lower,
+            ["生成", "产出", "写", "整理", "归档", "generate"],
+        )
+        and _has_any(lower, ["workflow", "研究闭环", "研究流程", "run_"])
+    )
 
 
 def _is_get_workflow_report_query(lower: str) -> bool:
-    return _has_any(lower, ["报告", "report"]) and _has_any(
-        lower,
-        ["查看", "读取", "打开", "看", "get"],
-    ) and _has_any(lower, ["workflow", "研究闭环", "研究流程", "run_"])
+    return (
+        _has_any(lower, ["报告", "report"])
+        and _has_any(
+            lower,
+            ["查看", "读取", "打开", "看", "get"],
+        )
+        and _has_any(lower, ["workflow", "研究闭环", "研究流程", "run_"])
+    )
 
 
 def _is_rag_index_query(lower: str) -> bool:
-    return _has_any(lower, ["rag", "检索索引", "检索增强", "索引"]) and _has_any(
-        lower,
-        ["建立", "创建"],
-    ) and _has_any(lower, ["论文", "p"])
+    return (
+        _has_any(lower, ["rag", "检索索引", "检索增强", "索引"])
+        and _has_any(
+            lower,
+            ["建立", "创建"],
+        )
+        and _has_any(lower, ["论文", "p"])
+    )
 
 
 def _is_add_rag_feedback_query(lower: str) -> bool:
@@ -420,10 +467,14 @@ def _is_add_rag_feedback_query(lower: str) -> bool:
 
 
 def _is_add_rag_evidence_feedback_query(lower: str) -> bool:
-    return _has_any(lower, ["标注", "反馈", "label", "feedback"]) and _has_any(
-        lower,
-        ["证据", "evidence", "chunk"],
-    ) and _has_any(lower, ["trace", "rag"])
+    return (
+        _has_any(lower, ["标注", "反馈", "label", "feedback"])
+        and _has_any(
+            lower,
+            ["证据", "evidence", "chunk"],
+        )
+        and _has_any(lower, ["trace", "rag"])
+    )
 
 
 def _is_rag_evidence_evaluation_summary_query(lower: str) -> bool:
@@ -434,9 +485,13 @@ def _is_rag_evidence_evaluation_summary_query(lower: str) -> bool:
 
 
 def _is_rag_trace_evidence_evaluation_query(lower: str) -> bool:
-    return _has_any(lower, ["trace", "rag"]) and _has_any(lower, ["证据级", "evidence-level", "evidence"]) and _has_any(
-        lower,
-        ["评估详情", "详情", "evaluation"],
+    return (
+        _has_any(lower, ["trace", "rag"])
+        and _has_any(lower, ["证据级", "evidence-level", "evidence"])
+        and _has_any(
+            lower,
+            ["评估详情", "详情", "evaluation"],
+        )
     )
 
 
@@ -448,14 +503,20 @@ def _is_rag_evaluation_summary_query(lower: str) -> bool:
 
 
 def _is_rag_trace_evaluation_detail_query(lower: str) -> bool:
-    return _has_any(lower, ["trace", "rag"]) and _has_any(lower, ["评估详情", "evaluation", "标注详情"])
+    return _has_any(lower, ["trace", "rag"]) and _has_any(
+        lower, ["评估详情", "evaluation", "标注详情"]
+    )
 
 
 def _is_latest_rag_traces_query(lower: str) -> bool:
-    return _has_any(lower, ["rag", "trace", "证据", "检索记录", "问答记录"]) and _has_any(
-        lower,
-        ["最近", "latest", "记录", "历史"],
-    ) and not _has_any(lower, ["论文 p", "paper p"])
+    return (
+        _has_any(lower, ["rag", "trace", "证据", "检索记录", "问答记录"])
+        and _has_any(
+            lower,
+            ["最近", "latest", "记录", "历史"],
+        )
+        and not _has_any(lower, ["论文 p", "paper p"])
+    )
 
 
 def _is_rag_trace_detail_query(lower: str) -> bool:
@@ -466,10 +527,14 @@ def _is_rag_trace_detail_query(lower: str) -> bool:
 
 
 def _is_rag_trace_by_paper_query(lower: str) -> bool:
-    return _has_any(lower, ["rag", "检索记录", "查询记录", "问答记录", "trace"]) and _has_any(
-        lower,
-        ["论文", "paper", "p"],
-    ) and _has_any(lower, ["记录", "历史", "查询", "trace"])
+    return (
+        _has_any(lower, ["rag", "检索记录", "查询记录", "问答记录", "trace"])
+        and _has_any(
+            lower,
+            ["论文", "paper", "p"],
+        )
+        and _has_any(lower, ["记录", "历史", "查询", "trace"])
+    )
 
 
 def _is_rag_search_query(lower: str) -> bool:

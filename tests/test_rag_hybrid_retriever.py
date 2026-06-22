@@ -1,12 +1,7 @@
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.core import database
 from app.rag.retrievers import HybridRetriever
@@ -29,7 +24,9 @@ def make_chunk(
     section_title: str | None = None,
     header: str | None = None,
 ) -> RagChunkCreate:
-    contextual_header = header or f"Paper: Test\nSection: {section_title or 'Unknown'}\nChunk: 0\nSource: test"
+    contextual_header = (
+        header or f"Paper: Test\nSection: {section_title or 'Unknown'}\nChunk: 0\nSource: test"
+    )
     return RagChunkCreate(
         chunk_id=chunk_id,
         paper_id="12",
@@ -46,7 +43,9 @@ def make_chunk(
 
 
 def test_hybrid_retriever_fuses_dense_sparse_and_reranks(rag_repo: RagChunkRepository) -> None:
-    rag_repo.create_chunk(make_chunk("A", "Propagation error correction appears as exact evidence."))
+    rag_repo.create_chunk(
+        make_chunk("A", "Propagation error correction appears as exact evidence.")
+    )
     rag_repo.create_chunk(
         make_chunk(
             "B",

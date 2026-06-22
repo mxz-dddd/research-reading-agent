@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
 import json
-from pathlib import Path
 import re
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any
 
 CITATION_PATTERN = re.compile(r"\[chunk:([^\]\s]+)\]")
@@ -92,12 +92,22 @@ class RagQualityEvalService:
         chunk_ids = {self._string_value(item, "chunk_id") for item in evidence}
         paper_ids = {self._string_value(item, "paper_id") for item in evidence}
 
-        matched_terms = [term for term in golden_query.expected_terms if term.lower() in evidence_text]
+        matched_terms = [
+            term for term in golden_query.expected_terms if term.lower() in evidence_text
+        ]
         missing_terms = [term for term in golden_query.expected_terms if term not in matched_terms]
-        matched_chunk_ids = [chunk_id for chunk_id in golden_query.expected_chunk_ids if chunk_id in chunk_ids]
-        missing_chunk_ids = [chunk_id for chunk_id in golden_query.expected_chunk_ids if chunk_id not in chunk_ids]
-        matched_paper_ids = [paper_id for paper_id in golden_query.expected_paper_ids if paper_id in paper_ids]
-        missing_paper_ids = [paper_id for paper_id in golden_query.expected_paper_ids if paper_id not in paper_ids]
+        matched_chunk_ids = [
+            chunk_id for chunk_id in golden_query.expected_chunk_ids if chunk_id in chunk_ids
+        ]
+        missing_chunk_ids = [
+            chunk_id for chunk_id in golden_query.expected_chunk_ids if chunk_id not in chunk_ids
+        ]
+        matched_paper_ids = [
+            paper_id for paper_id in golden_query.expected_paper_ids if paper_id in paper_ids
+        ]
+        missing_paper_ids = [
+            paper_id for paper_id in golden_query.expected_paper_ids if paper_id not in paper_ids
+        ]
 
         return RetrievalEvalResult(
             query_id=golden_query.query_id,
@@ -112,8 +122,12 @@ class RagQualityEvalService:
             matched_expected_paper_ids=matched_paper_ids,
             missing_expected_paper_ids=missing_paper_ids,
             recall_expected_terms=self._recall(matched_terms, golden_query.expected_terms),
-            recall_expected_chunk_ids=self._recall(matched_chunk_ids, golden_query.expected_chunk_ids),
-            recall_expected_paper_ids=self._recall(matched_paper_ids, golden_query.expected_paper_ids),
+            recall_expected_chunk_ids=self._recall(
+                matched_chunk_ids, golden_query.expected_chunk_ids
+            ),
+            recall_expected_paper_ids=self._recall(
+                matched_paper_ids, golden_query.expected_paper_ids
+            ),
             answer_contains_any=None,
             context_pack_id=self._read_str(response, "context_pack_id"),
             pipeline=self._read_dict(response, "pipeline"),
@@ -133,7 +147,9 @@ class RagQualityEvalService:
         )
         if golden_query.must_contain_any:
             answer_lower = str(answer).lower()
-            answer_contains_any: bool | None = any(term.lower() in answer_lower for term in golden_query.must_contain_any)
+            answer_contains_any: bool | None = any(
+                term.lower() in answer_lower for term in golden_query.must_contain_any
+            )
         else:
             answer_contains_any = None
 
@@ -213,7 +229,11 @@ class RagQualityEvalService:
         for result in results:
             by_mode.setdefault(result.retrieval_mode, []).append(result)
 
-        answer_values = [result.answer_contains_any for result in results if result.answer_contains_any is not None]
+        answer_values = [
+            result.answer_contains_any
+            for result in results
+            if result.answer_contains_any is not None
+        ]
         answer_modes = [result.answer_mode for result in results if result.answer_mode is not None]
         faithfulness = [
             result.citation_faithfulness
@@ -223,9 +243,15 @@ class RagQualityEvalService:
         return {
             "total": len(results),
             "error_count": sum(1 for result in results if result.error),
-            "avg_recall_expected_terms": self._average([result.recall_expected_terms for result in results]),
-            "avg_recall_expected_chunk_ids": self._average([result.recall_expected_chunk_ids for result in results]),
-            "avg_recall_expected_paper_ids": self._average([result.recall_expected_paper_ids for result in results]),
+            "avg_recall_expected_terms": self._average(
+                [result.recall_expected_terms for result in results]
+            ),
+            "avg_recall_expected_chunk_ids": self._average(
+                [result.recall_expected_chunk_ids for result in results]
+            ),
+            "avg_recall_expected_paper_ids": self._average(
+                [result.recall_expected_paper_ids for result in results]
+            ),
             "answer_contains_any_rate": self._bool_rate(answer_values),
             "llm_answer_rate": (
                 sum(1 for mode in answer_modes if mode == "llm") / len(answer_modes)
@@ -236,7 +262,9 @@ class RagQualityEvalService:
                 [bool(item.get("faithful")) for item in faithfulness]
             ),
             "avg_citation_precision": (
-                self._average([float(item.get("citation_precision") or 0.0) for item in faithfulness])
+                self._average(
+                    [float(item.get("citation_precision") or 0.0) for item in faithfulness]
+                )
                 if faithfulness
                 else None
             ),
@@ -244,7 +272,9 @@ class RagQualityEvalService:
                 mode: {
                     "total": len(mode_results),
                     "error_count": sum(1 for result in mode_results if result.error),
-                    "avg_recall_expected_terms": self._average([result.recall_expected_terms for result in mode_results]),
+                    "avg_recall_expected_terms": self._average(
+                        [result.recall_expected_terms for result in mode_results]
+                    ),
                     "avg_recall_expected_chunk_ids": self._average(
                         [result.recall_expected_chunk_ids for result in mode_results]
                     ),
@@ -252,7 +282,11 @@ class RagQualityEvalService:
                         [result.recall_expected_paper_ids for result in mode_results]
                     ),
                     "answer_contains_any_rate": self._bool_rate(
-                        [result.answer_contains_any for result in mode_results if result.answer_contains_any is not None]
+                        [
+                            result.answer_contains_any
+                            for result in mode_results
+                            if result.answer_contains_any is not None
+                        ]
                     ),
                 }
                 for mode, mode_results in by_mode.items()

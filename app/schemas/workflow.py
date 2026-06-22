@@ -13,7 +13,9 @@ class ResearchWorkflowRequest(BaseModel):
     rag_chunk_overlap: int = Field(default=120, ge=0, le=1000, description="RAG chunk 重叠字符数")
     generate_knowledge: bool = Field(default=True, description="是否生成知识树")
     generate_innovation: bool = Field(default=True, description="是否生成创新点分析")
-    dry_run: bool = Field(default=False, description="是否使用模拟数据演示完整 workflow，不访问外部服务或数据库")
+    dry_run: bool = Field(
+        default=False, description="是否使用模拟数据演示完整 workflow，不访问外部服务或数据库"
+    )
     user_id: str = Field(default="default", description="用户 ID，用于 Agent 会话兼容")
     session_id: str = Field(default="default", description="会话 ID，用于 Agent 会话兼容")
 

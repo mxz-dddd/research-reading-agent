@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
 import hashlib
 import threading
-from typing import Any, Iterator
+from collections.abc import Iterator
+from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from app.core.config import settings
 from app.repositories.conversation_repo import ConversationRepository
@@ -44,7 +45,9 @@ class ConversationContextService:
         )
         self.repo.prune_turns(session_id, settings.conversation_max_turns)
 
-    def save_assistant_turn(self, *, session_id: str, content: str, message_id: str | None = None) -> None:
+    def save_assistant_turn(
+        self, *, session_id: str, content: str, message_id: str | None = None
+    ) -> None:
         if not settings.conversation_context_enabled:
             return
         self.repo.add_turn(
@@ -112,7 +115,9 @@ class ConversationContextService:
             last_user_message=self._safe_summary(user_message),
             last_assistant_summary=self._safe_summary(assistant_text),
             last_focused_paper_id=focused_paper_id,
-            expires_at=(datetime.now(timezone.utc) + timedelta(hours=settings.conversation_ttl_hours)).isoformat(),
+            expires_at=(
+                datetime.now(UTC) + timedelta(hours=settings.conversation_ttl_hours)
+            ).isoformat(),
         )
         self.save_assistant_turn(session_id=session_id, content=assistant_text)
         return state
@@ -133,14 +138,20 @@ class ConversationContextService:
                 "published_from": arguments.get("published_from"),
                 "published_to": arguments.get("published_to"),
             }
-        if previous_state is not None and tool_name in {"accept_paper", "ingest_paper", "get_paper_detail"}:
+        if previous_state is not None and tool_name in {
+            "accept_paper",
+            "ingest_paper",
+            "get_paper_detail",
+        }:
             state_args = dict(previous_state.last_arguments)
             state_args["last_action_paper_id"] = arguments.get("paper_id")
             return state_args
         if previous_state is not None and tool_name == "batch_ingest_papers":
             state_args = dict(previous_state.last_arguments)
             state_args["paper_ids"] = [int(value) for value in arguments.get("paper_ids") or []]
-            state_args["source_positions"] = [int(value) for value in arguments.get("source_positions") or []]
+            state_args["source_positions"] = [
+                int(value) for value in arguments.get("source_positions") or []
+            ]
             return state_args
         return dict(arguments)
 
@@ -154,7 +165,9 @@ class ConversationContextService:
     ) -> list[dict[str, Any]]:
         if tool_name != "search_papers":
             return previous_state.last_result_refs if previous_state is not None else []
-        refs: list[dict[str, Any]] = list(previous_state.last_result_refs) if append_mode and previous_state else []
+        refs: list[dict[str, Any]] = (
+            list(previous_state.last_result_refs) if append_mode and previous_state else []
+        )
         seen_ids = {item.get("paper_id") for item in refs if item.get("paper_id") is not None}
         seen_urls = {self._normalize_url(item.get("url")) for item in refs if item.get("url")}
         if isinstance(data, list):
@@ -197,8 +210,11 @@ class ConversationContextService:
             return int(paper_id) if paper_id is not None else None
         if tool_name == "batch_ingest_papers" and isinstance(data, dict):
             successful = [
-                item for item in data.get("items") or []
-                if isinstance(item, dict) and item.get("status") == "success" and item.get("paper_id") is not None
+                item
+                for item in data.get("items") or []
+                if isinstance(item, dict)
+                and item.get("status") == "success"
+                and item.get("paper_id") is not None
             ]
             if successful:
                 return int(successful[-1]["paper_id"])
