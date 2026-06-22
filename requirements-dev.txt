@@ -1,4 +1,5 @@
 # 开发期工具：静态检查与类型检查。生产/运行不依赖这些。
 -r requirements.txt
+numpy<2.5
 ruff>=0.6.0
 mypy>=1.11.0
