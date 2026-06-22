@@ -13,7 +13,7 @@ from app.services.search_query_translation_service import (
     SearchQueryTranslation,
     SearchQueryTranslationService,
 )
-from app.tools.search_papers import PaperSearchResult
+from app.tools.search_papers import PaperSearchResult, _build_arxiv_query, search_papers
 
 
 class FakeClient:
@@ -141,26 +141,89 @@ def test_chinese_translation_strips_quotes_newlines_and_period() -> None:
         json.dumps({"search_query": "x" * 301}),
     ],
 )
-def test_invalid_chinese_translation_falls_back_to_original(reply: str) -> None:
+def test_invalid_chinese_translation_without_known_terms_is_explainable(reply: str) -> None:
     service = SearchQueryTranslationService(client=FakeClient(reply=reply))
 
     result = service.translate_for_search("中文检索主题")
 
-    assert result.search_query == "中文检索主题"
+    assert result.search_query == ""
     assert result.was_translated is False
-    assert result.translation_method == "fallback_original"
+    assert result.translation_method == "rule_fallback_unavailable"
 
 
-def test_translation_failure_falls_back_to_original() -> None:
+def test_translation_failure_uses_deterministic_term_fallback() -> None:
     from app.core.llm_client import LLMClientError
 
     service = SearchQueryTranslationService(client=FakeClient(error=LLMClientError("timeout")))
 
     result = service.translate_for_search("电离层 VLF 时延")
 
-    assert result.search_query == "电离层 VLF 时延"
-    assert result.was_translated is False
-    assert result.translation_method == "fallback_original"
+    assert result.search_query == "ionosphere VLF delay"
+    assert result.was_translated is True
+    assert result.translation_method == "rule_fallback"
+
+
+def test_rule_fallback_maps_known_chinese_research_terms() -> None:
+    from app.core.llm_client import LLMClientError
+
+    service = SearchQueryTranslationService(client=FakeClient(error=LLMClientError("timeout")))
+
+    result = service.translate_for_search("甚低频传播时延修正")
+
+    assert result.search_query == "VLF propagation delay correction"
+    assert result.translation_method == "rule_fallback"
+
+
+def test_unknown_chinese_query_never_builds_or_sends_empty_arxiv_query(monkeypatch) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(
+        "app.tools.search_papers._search_arxiv_query",
+        lambda query, limit: calls.append(query) or [],
+    )
+
+    with pytest.raises(ValueError, match="无法形成有效英文检索词"):
+        _build_arxiv_query("中文检索主题")
+    result = search_papers("中文检索主题")
+
+    assert calls == []
+    assert result.papers == []
+    assert result.source == "unavailable"
+    assert "英文检索词" in (result.error or "")
+
+
+def test_mixed_query_rule_fallback_preserves_ascii_and_maps_chinese() -> None:
+    from app.core.llm_client import LLMClientError
+
+    service = SearchQueryTranslationService(client=FakeClient(error=LLMClientError("timeout")))
+
+    result = service.translate_for_search("RAG 大模型幻觉")
+
+    assert result.search_query == "RAG LLM hallucination"
+
+
+def test_search_history_records_rule_fallback_method(monkeypatch) -> None:
+    from app.core.llm_client import LLMClientError
+
+    captured: dict[str, object] = {}
+
+    def fake_search_papers(query: str, limit: int, **kwargs):
+        captured["query"] = query
+        return PaperSearchResult(papers=[], source="arxiv")
+
+    monkeypatch.setattr("app.services.paper_service.search_papers", fake_search_papers)
+    service = PaperService()
+    service.paper_repo = FakePaperRepo()
+    service.query_translation_service = SearchQueryTranslationService(
+        client=FakeClient(error=LLMClientError("timeout"))
+    )
+
+    papers = service.search_and_store(
+        PaperSearchRequest(topic="甚低频传播时延修正", max_results=5)
+    )
+
+    assert papers == []
+    assert captured["query"] == "VLF propagation delay correction"
+    assert "translation_method=rule_fallback" in service.paper_repo.histories[0].query_text
 
 
 def test_chinese_translation_is_cached() -> None:

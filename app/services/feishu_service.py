@@ -1,4 +1,3 @@
-import base64
 import hashlib
 import hmac
 import json
@@ -300,9 +299,11 @@ class FeishuService:
             self._log_event("signature_verification_failed", level="warning", **context, reason="missing_headers")
             raise HTTPException(status_code=401, detail="飞书签名请求头不完整")
 
-        base = f"{timestamp}{nonce}{settings.feishu_encrypt_key}".encode("utf-8") + raw_body
-        digest = hmac.new(settings.feishu_encrypt_key.encode("utf-8"), base, hashlib.sha256).digest()
-        expected = base64.b64encode(digest).decode("utf-8")
+        signed_content = (
+            f"{timestamp}{nonce}{settings.feishu_encrypt_key}".encode("utf-8")
+            + raw_body
+        )
+        expected = hashlib.sha256(signed_content).hexdigest()
         if not hmac.compare_digest(expected, signature):
             self._log_event("signature_verification_failed", level="warning", **context, reason="signature_mismatch")
             raise HTTPException(status_code=401, detail="飞书签名校验失败")
@@ -528,6 +529,5 @@ class FeishuService:
 
     def _ssl_context(self) -> ssl.SSLContext:
         return ssl.create_default_context(cafile=certifi.where())
-
 
 

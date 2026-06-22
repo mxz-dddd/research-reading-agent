@@ -93,8 +93,26 @@ class ConversationFollowupService:
                 current_count = len(state.last_result_refs)
                 if append_mode and desired_total is not None:
                     quantity = max(0, desired_total - current_count)
+                    if quantity == 0:
+                        if desired_total == current_count:
+                            reply = (
+                                f"当前已经有 {current_count} 篇结果，已满足你要求的一共 "
+                                f"{desired_total} 篇。你可以说“再来5篇”或“接收第2篇”。"
+                            )
+                        else:
+                            reply = (
+                                f"当前已经有 {current_count} 篇结果，超过你要求的一共 "
+                                f"{desired_total} 篇。我已保留现有结果；你可以重新搜索，"
+                                "或指定要查看的论文范围。"
+                            )
+                        return self._direct_reply(reply, "desired_total_already_satisfied")
                 if append_mode and quantity is None:
                     quantity = int(args.get("limit") or 5)
+                if not args.get("query"):
+                    return self._direct_reply(
+                        "请先告诉我想搜索的研究主题，例如“搜索5篇VLF传播时延论文”。",
+                        "search_topic_missing",
+                    )
                 if topic is not None:
                     args["query"] = topic
                 if quantity is not None:
@@ -117,7 +135,7 @@ class ConversationFollowupService:
                     tool_name="search_papers",
                     arguments={
                         "topic": args.get("query"),
-                        "max_results": int(args.get("limit") or 5),
+                        "max_results": int(args["limit"]) if args.get("limit") is not None else 5,
                         "published_from": args.get("published_from"),
                         "published_to": args.get("published_to"),
                         "exclude_urls": exclude_urls,

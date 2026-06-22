@@ -102,6 +102,12 @@ def search_papers(
         synonyms=synonyms,
     )
     plans = _build_arxiv_query_plans(terms, published_from=published_from, published_to=published_to)
+    if not plans:
+        return PaperSearchResult(
+            papers=[],
+            source="unavailable",
+            error="无法形成有效英文检索词，请补充英文关键词后重试。",
+        )
     attempted_queries: list[dict[str, Any]] = []
     collected: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -377,13 +383,24 @@ def _build_arxiv_query_plans(
         )
 
     if not plans:
-        plans.append(ArxivQueryPlan(1, _with_date_range(_field_term(" ".join(terms.optional_terms)), published_from, published_to), "raw"))
+        raw_query = _field_term(" ".join(terms.optional_terms))
+        if raw_query:
+            plans.append(
+                ArxivQueryPlan(
+                    1,
+                    _with_date_range(raw_query, published_from, published_to),
+                    "raw",
+                )
+            )
 
     return _dedupe_plans(plans)
 
 
 def _build_arxiv_query(query: str) -> str:
-    return _build_arxiv_query_plans(_build_search_terms(query))[0].query
+    plans = _build_arxiv_query_plans(_build_search_terms(query))
+    if not plans:
+        raise ValueError("无法形成有效英文检索词")
+    return plans[0].query
 
 
 def _tokenize_query(query: str) -> list[str]:

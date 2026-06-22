@@ -1,3 +1,6 @@
+import base64
+import hashlib
+import hmac
 import json
 import logging
 from types import SimpleNamespace
@@ -135,6 +138,104 @@ def test_feishu_invalid_json_returns_400() -> None:
         service.handle_webhook(raw_body=b"{not-json", headers={})
 
     assert exc_info.value.status_code == 400
+
+
+def test_feishu_valid_signature_passes(monkeypatch) -> None:
+    encrypt_key = "test-encrypt-key"
+    timestamp = "1710000000"
+    nonce = "nonce-1"
+    raw_body = _payload(event_id="evt_signed", message_id="msg_signed")
+    signature = hashlib.sha256(
+        f"{timestamp}{nonce}{encrypt_key}".encode("utf-8") + raw_body
+    ).hexdigest()
+    monkeypatch.setattr(
+        "app.services.feishu_service.settings",
+        _settings(feishu_enable_signature_check=True, feishu_encrypt_key=encrypt_key),
+    )
+    service = FeishuService()
+    monkeypatch.setattr(service, "_process_message_event", lambda *args, **kwargs: None)
+
+    result = service.handle_webhook(
+        raw_body=raw_body,
+        headers={
+            "x-lark-request-timestamp": timestamp,
+            "x-lark-request-nonce": nonce,
+            "x-lark-signature": signature,
+        },
+    )
+
+    assert result["event_id"] == "evt_signed"
+
+
+@pytest.mark.parametrize("signature", ["wrong-signature", ""])
+def test_feishu_invalid_or_missing_signature_is_rejected(monkeypatch, signature: str) -> None:
+    monkeypatch.setattr(
+        "app.services.feishu_service.settings",
+        _settings(feishu_enable_signature_check=True, feishu_encrypt_key="test-encrypt-key"),
+    )
+    headers = {
+        "x-lark-request-timestamp": "1710000000",
+        "x-lark-request-nonce": "nonce-1",
+    }
+    if signature:
+        headers["x-lark-signature"] = signature
+
+    with pytest.raises(HTTPException) as exc_info:
+        FeishuService().handle_webhook(raw_body=_payload(), headers=headers)
+
+    assert exc_info.value.status_code == 401
+
+
+def test_feishu_legacy_hmac_base64_signature_is_rejected(monkeypatch) -> None:
+    encrypt_key = "test-encrypt-key"
+    timestamp = "1710000000"
+    nonce = "nonce-1"
+    raw_body = _payload()
+    signed_content = f"{timestamp}{nonce}{encrypt_key}".encode("utf-8") + raw_body
+    legacy_signature = base64.b64encode(
+        hmac.new(encrypt_key.encode("utf-8"), signed_content, hashlib.sha256).digest()
+    ).decode("utf-8")
+    monkeypatch.setattr(
+        "app.services.feishu_service.settings",
+        _settings(feishu_enable_signature_check=True, feishu_encrypt_key=encrypt_key),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        FeishuService().handle_webhook(
+            raw_body=raw_body,
+            headers={
+                "x-lark-request-timestamp": timestamp,
+                "x-lark-request-nonce": nonce,
+                "x-lark-signature": legacy_signature,
+            },
+        )
+
+    assert exc_info.value.status_code == 401
+
+
+def test_feishu_signature_check_disabled_accepts_unsigned_event(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.services.feishu_service.settings",
+        _settings(feishu_enable_signature_check=False),
+    )
+    service = FeishuService()
+    monkeypatch.setattr(service, "_process_message_event", lambda *args, **kwargs: None)
+
+    result = service.handle_webhook(raw_body=_payload(), headers={})
+
+    assert result["event_id"] == "evt_1"
+
+
+def test_feishu_signature_check_requires_encrypt_key(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.services.feishu_service.settings",
+        _settings(feishu_enable_signature_check=True, feishu_encrypt_key=None),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        FeishuService().handle_webhook(raw_body=_payload(), headers={})
+
+    assert exc_info.value.status_code == 500
 
 
 def test_feishu_non_text_message_replies_without_agent(monkeypatch) -> None:
@@ -567,5 +668,4 @@ def test_feishu_batch_ingest_uses_previous_five_and_hides_internal_names(monkeyp
     state = service.context_service.get_state(session_id)
     assert state is not None
     assert len(state.last_result_refs) == 5
-
 

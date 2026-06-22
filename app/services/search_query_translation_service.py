@@ -15,6 +15,26 @@ logger = logging.getLogger(__name__)
 CHINESE_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
 ASCII_LETTER_RE = re.compile(r"[A-Za-z]")
 MAX_CACHE_SIZE = 256
+RULE_FALLBACK_TERMS = (
+    ("检索增强生成", "retrieval augmented generation"),
+    ("时间延迟", "time delay"),
+    ("低电离层", "lower ionosphere"),
+    ("太阳耀斑", "solar flare"),
+    ("甚低频", "VLF"),
+    ("超低频", "ULF"),
+    ("传播", "propagation"),
+    ("时延", "delay"),
+    ("修正", "correction"),
+    ("校正", "calibration"),
+    ("电离层", "ionosphere"),
+    ("D区", "D-region"),
+    ("遥感", "remote sensing"),
+    ("导航", "navigation"),
+    ("授时", "timing"),
+    ("定位", "positioning"),
+    ("大模型", "LLM"),
+    ("幻觉", "hallucination"),
+)
 
 
 @dataclass(frozen=True)
@@ -106,19 +126,22 @@ class SearchQueryTranslationService:
             )
             return result
         except (LLMClientError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+            fallback_query = self._rule_fallback(original_query)
+            fallback_method = "rule_fallback" if fallback_query else "rule_fallback_unavailable"
             result = SearchQueryTranslation(
                 original_query=original_query,
-                search_query=original_query,
-                was_translated=False,
-                translation_method="fallback_original",
-                **self._local_search_terms(original_query),
+                search_query=fallback_query,
+                was_translated=bool(fallback_query),
+                translation_method=fallback_method,
+                **self._local_search_terms(fallback_query),
             )
             self._remember(original_query, result)
             logger.warning(
-                "search_query_translation chinese_detected=True success=False elapsed_ms=%s query_len=%s preview=%s method=fallback_original error_type=%s",
+                "search_query_translation chinese_detected=True success=False elapsed_ms=%s query_len=%s preview=%s method=%s error_type=%s",
                 int((time.monotonic() - start) * 1000),
                 len(original_query),
                 self._safe_preview(original_query),
+                fallback_method,
                 type(exc).__name__,
             )
             return result
@@ -220,6 +243,30 @@ Rules:
             "phrases": self._normalize_terms(phrases),
             "synonyms": (),
         }
+
+    def _rule_fallback(self, query: str) -> str:
+        candidates: list[tuple[int, int, str]] = []
+        for source, target in RULE_FALLBACK_TERMS:
+            for match in re.finditer(re.escape(source), query, flags=re.IGNORECASE):
+                candidates.append((match.start(), match.end(), target))
+        for match in re.finditer(r"[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)*", query):
+            candidates.append((match.start(), match.end(), match.group(0)))
+
+        selected: list[tuple[int, int, str]] = []
+        for start, end, target in sorted(candidates, key=lambda item: (item[0], -(item[1] - item[0]))):
+            if any(start < chosen_end and end > chosen_start for chosen_start, chosen_end, _ in selected):
+                continue
+            selected.append((start, end, target))
+
+        terms: list[str] = []
+        seen: set[str] = set()
+        for _, _, target in sorted(selected):
+            key = target.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            terms.append(target)
+        return " ".join(terms)
 
     def _remember(self, query: str, result: SearchQueryTranslation) -> None:
         self._cache[query] = result

@@ -403,8 +403,9 @@ Archived paper materials:
         topic: str | None,
         data: dict[str, Any],
     ) -> str:
+        display_topic = topic or "\u5168\u90e8\u5df2\u63a5\u6536\u8bba\u6587"
         lines = [
-            f"# \u521b\u65b0\u70b9\u5206\u6790\uff1a{topic or '\u5168\u90e8\u5df2\u63a5\u6536\u8bba\u6587'}",
+            f"# \u521b\u65b0\u70b9\u5206\u6790\uff1a{display_topic}",
             "",
         ]
 
@@ -459,6 +460,7 @@ Archived paper materials:
             )
 
             for evidence in idea.get("evidence_from_papers", []):
+                evidence_title = evidence.get("title") or "\u672a\u6307\u5b9a\u8bba\u6587"
                 evidence_text = (
                     evidence.get("evidence")
                     or evidence.get("basis")
@@ -468,7 +470,7 @@ Archived paper materials:
 
                 lines.append(
                     f"  - P{evidence.get('paper_id', '?')}"
-                    f"\u300a{evidence.get('title') or '\u672a\u6307\u5b9a\u8bba\u6587'}\u300b"
+                    f"\u300a{evidence_title}\u300b"
                     f"\uff1a{evidence_text}"
                 )
 

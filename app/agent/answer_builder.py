@@ -9,7 +9,7 @@ def build_final_answer(tool_name: str, data: Any, *, arguments: dict[str, Any] |
         if not data:
             if append_mode:
                 return "我已排除刚才展示过的论文继续检索，但没有找到更多新的匹配结果。可以尝试放宽时间范围、减少限定词，或换一个相关主题。"
-            return "已自动转换为英文学术关键词，但当前检索范围内没有找到匹配论文。可以尝试放宽时间范围或减少限定词。"
+            return "当前检索范围内没有找到匹配论文。可以补充英文关键词、放宽时间范围或减少限定词后重试。"
         lines = [f"继续为你补充 {len(data)} 篇：" if append_mode else f"找到 {len(data)} 篇相关论文："]
         display_limit = int(arguments.get("max_results") or 5)
         for index, paper in enumerate(data[:display_limit], start=offset + 1):
