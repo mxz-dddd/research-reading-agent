@@ -30,6 +30,7 @@ _MAX_STEPS_LIMIT = 8
 _WRITE_TOOL_KEYWORDS: dict[str, tuple[str, ...]] = {
     "accept_paper": ("接收", "接受", "accept"),
     "ingest_paper": ("入库", "下载", "ingest"),
+    "batch_ingest_papers": ("全部深入阅读", "批量深入阅读", "都进行深入阅读"),
     "generate_knowledge": ("生成知识", "知识树", "generate knowledge"),
     "generate_innovation": ("生成创新", "创新点", "generate innovation"),
     "run_research_workflow": ("运行工作流", "执行工作流", "run workflow"),
@@ -41,7 +42,7 @@ _WRITE_TOOL_KEYWORDS: dict[str, tuple[str, ...]] = {
 
 
 def _to_chat_tools(tool_schemas: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """把 Responses API 风格的工具定义转换成 chat/completions 风格。"""
+    """Convert Responses API style tool definitions to the legacy helper shape."""
     chat_tools = []
     for schema in tool_schemas:
         chat_tools.append(

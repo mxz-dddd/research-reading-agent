@@ -47,9 +47,9 @@ class Settings:
     app_name: str = os.getenv("APP_NAME", "Research Agent")
     database_path: str = os.getenv("DATABASE_PATH", "data/research_agent.db")
     openai_api_key: str | None = os.getenv("OPENAI_API_KEY")
-    # 默认使用真实存在、支持 Responses/Chat API 的模型；可用 OPENAI_MODEL 覆盖。
+    # 可用 OPENAI_MODEL 覆盖；LLM 调用统一走 Responses API。
     openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-    openai_base_url: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    openai_base_url: str = os.getenv("OPENAI_BASE_URL", "")
     feishu_app_id: str | None = os.getenv("FEISHU_APP_ID")
     feishu_app_secret: str | None = os.getenv("FEISHU_APP_SECRET")
     feishu_verification_token: str | None = os.getenv("FEISHU_VERIFICATION_TOKEN")
@@ -88,6 +88,12 @@ class Settings:
         os.getenv("AGENT_MULTI_STEP_ENABLED", "false").lower() == "true"
     )
     agent_max_steps: int = int(os.getenv("AGENT_MAX_STEPS", "3"))
+    conversation_context_enabled: bool = (
+        os.getenv("CONVERSATION_CONTEXT_ENABLED", "true").lower() == "true"
+    )
+    conversation_ttl_hours: int = int(os.getenv("CONVERSATION_TTL_HOURS", "168"))
+    conversation_max_turns: int = int(os.getenv("CONVERSATION_MAX_TURNS", "10"))
+    conversation_max_result_refs: int = int(os.getenv("CONVERSATION_MAX_RESULT_REFS", "20"))
 
 
 settings = Settings()

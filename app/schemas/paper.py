@@ -8,6 +8,12 @@ class PaperSearchRequest(BaseModel):
     # 兼容第一阶段字段，后续可以逐步迁移到 topic / max_results。
     query: str | None = Field(default=None, min_length=1, description="搜索关键词或研究方向")
     limit: int | None = Field(default=None, ge=1, le=20, description="返回论文数量")
+    published_from: str | None = Field(default=None, description="发表时间下限 YYYY-MM-DD")
+    published_to: str | None = Field(default=None, description="发表时间上限 YYYY-MM-DD")
+    exclude_urls: list[str] = Field(default_factory=list, exclude=True)
+    exclude_paper_ids: list[int] = Field(default_factory=list, exclude=True)
+    exclude_arxiv_ids: list[str] = Field(default_factory=list, exclude=True)
+    append_mode: bool = Field(default=False, exclude=True)
 
     @model_validator(mode="after")
     def require_topic_or_query(self) -> "PaperSearchRequest":

@@ -42,6 +42,12 @@ def build_research_tool_mux(
         read_only=False,
     )
     registry.register(
+        "batch_ingest_papers",
+        research_tools.batch_ingest_papers,
+        description="Sequentially ingest a selected batch of papers",
+        read_only=False,
+    )
+    registry.register(
         "generate_knowledge",
         research_tools.generate_knowledge,
         description="Generate knowledge tree from accepted papers",

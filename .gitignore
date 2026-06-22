@@ -1,12 +1,20 @@
 .venv/
+venv/
 .agents/
 .codex/
 __pycache__/
 *.py[cod]
+*.pyc
 .pytest_cache/
 
 data/*.db
 data/*.db-*
+data/logs/
+data/papers/
+data/archives/
+data/debug_backups/
+*.sqlite
+*.sqlite3
 data/papers/pdfs/*
 data/papers/text/*
 data/archives/summaries/*
@@ -30,3 +38,6 @@ data/archives/**/*.json
 eval/golden_queries.local.jsonl
 eval/*.local.jsonl
 eval/rag_eval_runs/
+
+.DS_Store
+Thumbs.db

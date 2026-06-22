@@ -1,5 +1,7 @@
 from typing import Any, Callable
 
+from fastapi import HTTPException
+
 from app.repositories.session_repo import SessionStateRepository
 from app.schemas.innovation import InnovationGenerateRequest
 from app.schemas.knowledge import KnowledgeGenerateRequest
@@ -18,9 +20,15 @@ from app.services.workflow_report_service import WorkflowReportService
 # 注意这是“给 LLM 看”的参数（例如包含 ordinal，由 argument_resolver 解析为 paper_id），
 # 与实际 callable 签名可以不同，因此显式声明而非从函数签名反射。
 TOOL_PARAMETER_SCHEMAS: dict[str, dict[str, str]] = {
-    "search_papers": {"topic": "string", "max_results": "integer"},
+    "search_papers": {
+        "topic": "string",
+        "max_results": "integer",
+        "published_from": "string",
+        "published_to": "string",
+    },
     "accept_paper": {"paper_id": "integer", "ordinal": "integer"},
     "ingest_paper": {"paper_id": "integer", "ordinal": "integer"},
+    "batch_ingest_papers": {"paper_ids": "array", "source_positions": "array"},
     "list_accepted_papers": {},
     "get_paper_detail": {"paper_id": "integer", "ordinal": "integer"},
     "generate_knowledge": {"topic": "string"},
@@ -106,6 +114,7 @@ class ToolRegistry:
             "search_papers": self.search_papers,
             "accept_paper": self.accept_paper,
             "ingest_paper": self.ingest_paper,
+            "batch_ingest_papers": self.batch_ingest_papers,
             "list_accepted_papers": self.list_accepted_papers,
             "get_paper_detail": self.get_paper_detail,
             "generate_knowledge": self.generate_knowledge,
@@ -154,12 +163,29 @@ class ToolRegistry:
         *,
         topic: str,
         max_results: int = 5,
+        published_from: str | None = None,
+        published_to: str | None = None,
+        exclude_urls: list[str] | None = None,
+        exclude_paper_ids: list[int] | None = None,
+        exclude_arxiv_ids: list[str] | None = None,
+        append_mode: bool = False,
+        result_offset: int = 0,
         topic_id: int | None = None,
         user_id: str = "default",
         session_id: str = "default",
     ) -> list[dict[str, Any]]:
         papers = self.paper_service.search_and_store(
-            PaperSearchRequest(topic=topic, max_results=max_results, topic_id=topic_id)
+            PaperSearchRequest(
+                topic=topic,
+                max_results=max_results,
+                topic_id=topic_id,
+                published_from=published_from,
+                published_to=published_to,
+                exclude_urls=exclude_urls or [],
+                exclude_paper_ids=exclude_paper_ids or [],
+                exclude_arxiv_ids=exclude_arxiv_ids or [],
+                append_mode=append_mode,
+            )
         )
         data = [paper.model_dump() for paper in papers]
         self.session_repo.save_recent_search_results(user_id, session_id, data)
@@ -170,6 +196,49 @@ class ToolRegistry:
 
     def ingest_paper(self, *, paper_id: int) -> dict[str, Any]:
         return self.paper_service.ingest_paper(PaperIngestRequest(paper_id=paper_id)).model_dump()
+
+    def batch_ingest_papers(
+        self,
+        *,
+        paper_ids: list[int],
+        source_positions: list[int] | None = None,
+    ) -> dict[str, Any]:
+        positions = source_positions or list(range(1, len(paper_ids) + 1))
+        items: list[dict[str, Any]] = []
+        succeeded = 0
+        for index, paper_id in enumerate(paper_ids):
+            position = positions[index] if index < len(positions) else index + 1
+            title: str | None = None
+            try:
+                title = self.paper_service.get_paper(int(paper_id)).title
+                paper = self.paper_service.ingest_paper(PaperIngestRequest(paper_id=int(paper_id)))
+                succeeded += 1
+                items.append(
+                    {
+                        "position": int(position),
+                        "paper_id": int(paper_id),
+                        "title": paper.title,
+                        "status": "success",
+                        "ingest_status": paper.ingest_status,
+                    }
+                )
+            except Exception as exc:
+                error = exc.detail if isinstance(exc, HTTPException) else str(exc)
+                items.append(
+                    {
+                        "position": int(position),
+                        "paper_id": int(paper_id),
+                        "title": title or f"论文 P{paper_id}",
+                        "status": "failed",
+                        "error": str(error)[:200] or type(exc).__name__,
+                    }
+                )
+        return {
+            "total": len(paper_ids),
+            "succeeded": succeeded,
+            "failed": len(paper_ids) - succeeded,
+            "items": items,
+        }
 
     def list_accepted_papers(self) -> list[dict[str, Any]]:
         return [paper.model_dump() for paper in self.paper_service.list_accepted()]

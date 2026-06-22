@@ -5,11 +5,19 @@ from typing import Iterator
 from app.core.config import settings
 
 
+class ClosingConnection(sqlite3.Connection):
+    def __exit__(self, exc_type, exc_value, traceback) -> bool:
+        try:
+            return super().__exit__(exc_type, exc_value, traceback)
+        finally:
+            self.close()
+
+
 def get_connection() -> sqlite3.Connection:
     """创建 SQLite 连接，并让查询结果可以像字典一样读取。"""
     db_path = Path(settings.database_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, factory=ClosingConnection)
     conn.row_factory = sqlite3.Row
     # WAL 提升并发读（读写不互斥）；busy_timeout 避免瞬时锁直接报错。
     # 不开启 foreign_keys 强制，以免影响现有插入顺序与既有数据。
@@ -156,6 +164,39 @@ def init_db() -> None:
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS conversation_turns (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                message_id TEXT,
+                created_at TEXT NOT NULL,
+                UNIQUE(session_id, message_id, role)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS conversation_task_state (
+                session_id TEXT PRIMARY KEY,
+                channel TEXT,
+                chat_id TEXT,
+                user_id TEXT,
+                thread_id TEXT,
+                last_intent TEXT,
+                last_tool TEXT,
+                last_arguments_json TEXT NOT NULL,
+                last_result_refs_json TEXT NOT NULL,
+                last_user_message TEXT,
+                last_assistant_summary TEXT,
+                last_focused_paper_id INTEGER,
+                updated_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS workflow_runs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 run_id TEXT NOT NULL UNIQUE,
@@ -294,6 +335,8 @@ def _create_indexes(conn: sqlite3.Connection) -> None:
         "CREATE INDEX IF NOT EXISTS idx_workflow_runs_created_at ON workflow_runs(created_at)",
         # context pack 按 user/session 最近列表查询
         "CREATE INDEX IF NOT EXISTS idx_context_packs_user_session ON context_packs(user_id, session_id, created_at)",
+        "CREATE INDEX IF NOT EXISTS idx_conversation_turns_session_created ON conversation_turns(session_id, created_at)",
+        "CREATE INDEX IF NOT EXISTS idx_conversation_task_state_expires ON conversation_task_state(expires_at)",
         # 论文列表常按接收状态过滤
         "CREATE INDEX IF NOT EXISTS idx_papers_is_accepted ON papers(is_accepted)",
     )
