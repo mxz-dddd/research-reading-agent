@@ -5,7 +5,6 @@ from typing import Any
 import requests
 import streamlit as st
 
-
 DEFAULT_API_BASE_URL = "http://127.0.0.1:8000"
 BACKEND_HELP = "后端未运行，请先启动 FastAPI 后端。"
 DEFAULT_REQUEST_TIMEOUT = 60
@@ -67,13 +66,17 @@ def _backend_detail(payload: Any) -> str:
     return ""
 
 
-def response_payload_or_error(response: requests.Response) -> tuple[dict[str, Any] | None, str | None]:
+def response_payload_or_error(
+    response: requests.Response,
+) -> tuple[dict[str, Any] | None, str | None]:
     try:
         payload: Any = response.json()
     except ValueError:
         preview = response.text[:500]
         if response.status_code >= 400:
-            return {"raw_response": preview}, f"请求失败，HTTP {response.status_code}，后端返回了非 JSON 响应：{preview}"
+            return {
+                "raw_response": preview
+            }, f"请求失败，HTTP {response.status_code}，后端返回了非 JSON 响应：{preview}"
         return {"raw_response": preview}, "接口返回不是有效 JSON。"
 
     if not isinstance(payload, dict):
@@ -90,7 +93,9 @@ def response_payload_or_error(response: requests.Response) -> tuple[dict[str, An
     return payload, None
 
 
-def api_request(method: str, path: str, *, json: dict[str, Any] | None = None) -> tuple[dict[str, Any] | None, str | None]:
+def api_request(
+    method: str, path: str, *, json: dict[str, Any] | None = None
+) -> tuple[dict[str, Any] | None, str | None]:
     base_url = normalize_base_url(st.session_state.get("api_base_url", DEFAULT_API_BASE_URL))
     url = f"{base_url}{path}"
     try:
@@ -101,9 +106,7 @@ def api_request(method: str, path: str, *, json: dict[str, Any] | None = None) -
             timeout=request_timeout_for_path(path),
         )
     except requests.Timeout:
-        return None, (
-            "请求已超时。后端可能仍在运行，请稍后查看研究流程历史或后端日志。"
-        )
+        return None, ("请求已超时。后端可能仍在运行，请稍后查看研究流程历史或后端日志。")
     except requests.ConnectionError:
         return None, BACKEND_HELP
     except requests.RequestException as exc:
@@ -115,7 +118,9 @@ def api_request(method: str, path: str, *, json: dict[str, Any] | None = None) -
 def safe_api_get(path: str, params: dict | None = None) -> tuple[bool, dict | None, str | None]:
     base_url = normalize_base_url(st.session_state.get("api_base_url", DEFAULT_API_BASE_URL))
     try:
-        response = requests.get(f"{base_url}{path}", params=params, timeout=request_timeout_for_path(path))
+        response = requests.get(
+            f"{base_url}{path}", params=params, timeout=request_timeout_for_path(path)
+        )
         data, error = response_payload_or_error(response)
         return error is None, data, error
     except requests.exceptions.ConnectionError:
@@ -129,7 +134,9 @@ def safe_api_get(path: str, params: dict | None = None) -> tuple[bool, dict | No
 def safe_api_post(path: str, payload: dict) -> tuple[bool, dict | None, str | None]:
     base_url = normalize_base_url(st.session_state.get("api_base_url", DEFAULT_API_BASE_URL))
     try:
-        response = requests.post(f"{base_url}{path}", json=payload, timeout=request_timeout_for_path(path))
+        response = requests.post(
+            f"{base_url}{path}", json=payload, timeout=request_timeout_for_path(path)
+        )
         data, error = response_payload_or_error(response)
         return error is None, data, error
     except requests.exceptions.ConnectionError:
@@ -380,7 +387,9 @@ def _render_context_pack_viewer(response: dict) -> None:
     elif context_pack_id:
         st.info(f"当前响应包含 context_pack_id：{context_pack_id}。可在下方手动加载。")
 
-    manual_context_pack_id = st.text_input("context_pack_id", value=str(context_pack_id or ""), key="rag_v2_context_pack_id")
+    manual_context_pack_id = st.text_input(
+        "context_pack_id", value=str(context_pack_id or ""), key="rag_v2_context_pack_id"
+    )
     if st.button("加载 Evidence Pack", disabled=not manual_context_pack_id.strip()):
         ok, data, error = safe_api_get(f"/api/rag/context-packs/{manual_context_pack_id.strip()}")
         if ok and data:
@@ -420,7 +429,9 @@ def _render_pipeline_viewer(response: dict) -> None:
 
 def dashboard_page() -> None:
     st.header("仪表盘")
-    st.info("这里汇总展示当前研究流程、查询记录和评估指标。第一次使用时，可以先到“运行研究流程”页面点击“运行演示流程”。")
+    st.info(
+        "这里汇总展示当前研究流程、查询记录和评估指标。第一次使用时，可以先到“运行研究流程”页面点击“运行演示流程”。"
+    )
     connected = backend_health()
     if connected:
         st.success("后端已连接")
@@ -532,7 +543,9 @@ def dashboard_page() -> None:
 
 def agent_chat_page() -> None:
     st.header("智能体对话")
-    st.info("这里可以用自然语言调用后端 Agent。适合测试“你能做什么”、“帮我运行研究流程”、“查看最近一次研究结果”等指令。")
+    st.info(
+        "这里可以用自然语言调用后端 Agent。适合测试“你能做什么”、“帮我运行研究流程”、“查看最近一次研究结果”等指令。"
+    )
     message = st.text_area("自然语言请求", value="你能做什么", height=120)
     user_id = st.text_input("user_id（用户 ID）", value="streamlit-user")
     session_id = st.text_input("session_id（会话 ID）", value="streamlit-session")
@@ -546,7 +559,9 @@ def agent_chat_page() -> None:
         render_error(error)
         if payload:
             st.session_state["latest_agent_response"] = payload
-            if payload.get("chosen_tool") == "run_research_workflow" and isinstance(payload.get("data"), dict):
+            if payload.get("chosen_tool") == "run_research_workflow" and isinstance(
+                payload.get("data"), dict
+            ):
                 save_workflow_run_id(payload["data"])
 
             if payload.get("success"):
@@ -566,13 +581,25 @@ def agent_chat_page() -> None:
 
 def run_workflow_page() -> None:
     st.header("运行研究流程")
-    st.info("这里用于从研究方向出发，执行论文搜索、接收、ingest、本地检索索引、知识树和创新点生成。没有网络或 API Key 时建议使用 dry_run 演示模式。")
+    st.info(
+        "这里用于从研究方向出发，执行论文搜索、接收、ingest、本地检索索引、知识树和创新点生成。没有网络或 API Key 时建议使用 dry_run 演示模式。"
+    )
     topic = st.text_input("研究主题", value="large language model agent")
     col1, col2 = st.columns(2)
-    max_results = col1.number_input("max_results（搜索论文数量）", min_value=1, max_value=20, value=3, step=1)
-    accept_top_k = col2.number_input("accept_top_k（自动接收前 K 篇）", min_value=1, max_value=20, value=2, step=1)
-    dry_run = st.checkbox("dry_run（演示模式）", value=False, help="使用模拟数据演示完整流程，适合无网络演示。")
-    index_rag = st.checkbox("index_rag（自动建立 RAG 索引）", value=True, help="流程 ingest 后，为论文建立本地 RAG v1 索引。")
+    max_results = col1.number_input(
+        "max_results（搜索论文数量）", min_value=1, max_value=20, value=3, step=1
+    )
+    accept_top_k = col2.number_input(
+        "accept_top_k（自动接收前 K 篇）", min_value=1, max_value=20, value=2, step=1
+    )
+    dry_run = st.checkbox(
+        "dry_run（演示模式）", value=False, help="使用模拟数据演示完整流程，适合无网络演示。"
+    )
+    index_rag = st.checkbox(
+        "index_rag（自动建立 RAG 索引）",
+        value=True,
+        help="流程 ingest 后，为论文建立本地 RAG v1 索引。",
+    )
     is_running = bool(st.session_state.get("workflow_running"))
 
     col1, col2 = st.columns(2)
@@ -606,7 +633,9 @@ def run_workflow_page() -> None:
 
 def workflow_history_page() -> None:
     st.header("研究流程历史")
-    st.info("这里可以查看最近运行过的 workflow 记录。每条记录都有 run_id，可用于生成报告或复盘结果。")
+    st.info(
+        "这里可以查看最近运行过的 workflow 记录。每条记录都有 run_id，可用于生成报告或复盘结果。"
+    )
     col1, col2 = st.columns(2)
 
     with col1:
@@ -643,7 +672,9 @@ def workflow_history_page() -> None:
 
 def workflow_report_page() -> None:
     st.header("研究报告")
-    st.info("这里可以根据 workflow 的 run_id 生成或读取 Markdown 研究报告。如果刚运行过流程，系统会自动填入最近的 run_id。")
+    st.info(
+        "这里可以根据 workflow 的 run_id 生成或读取 Markdown 研究报告。如果刚运行过流程，系统会自动填入最近的 run_id。"
+    )
     run_id = st.text_input(
         "run_id（研究流程 ID）",
         value=st.session_state.get("latest_run_id", ""),
@@ -686,7 +717,9 @@ def workflow_report_page() -> None:
 
 def rag_qa_page() -> None:
     st.header("论文查询与复盘")
-    st.info("这里用于基于已索引论文片段进行查询和复盘。底层 RAG v1 使用关键词/token overlap 检索，如果没有证据，系统不会编造答案。")
+    st.info(
+        "这里用于基于已索引论文片段进行查询和复盘。底层 RAG v1 使用关键词/token overlap 检索，如果没有证据，系统不会编造答案。"
+    )
     query = st.text_area("问题", value="retrieval augmented generation", height=100)
     paper_id = st.text_input("paper_id（可选论文 ID）", value="")
     top_k = st.number_input("top_k（返回证据数量）", min_value=1, max_value=20, value=5, step=1)
@@ -746,10 +779,16 @@ def render_rag_v2_debugger() -> None:
     session_id = col2.text_input("session_id", value="default", key="rag_v2_session_id")
 
     col1, col2, col3 = st.columns(3)
-    retrieval_mode = col1.selectbox("retrieval_mode", ["hybrid", "keyword"], key="rag_v2_retrieval_mode")
+    retrieval_mode = col1.selectbox(
+        "retrieval_mode", ["hybrid", "keyword"], key="rag_v2_retrieval_mode"
+    )
     paper_id = col2.text_input("paper_id（可选）", value="", key="rag_v2_paper_id")
-    top_k = col3.number_input("top_k", min_value=1, max_value=20, value=5, step=1, key="rag_v2_top_k")
-    query = st.text_area("query", value="这篇论文的方法和实验结论是什么？", height=120, key="rag_v2_query")
+    top_k = col3.number_input(
+        "top_k", min_value=1, max_value=20, value=5, step=1, key="rag_v2_top_k"
+    )
+    query = st.text_area(
+        "query", value="这篇论文的方法和实验结论是什么？", height=120, key="rag_v2_query"
+    )
 
     payload: dict[str, Any] = {
         "query": query,
@@ -798,7 +837,9 @@ def render_rag_v2_debugger() -> None:
 
 def rag_evaluation_page() -> None:
     st.header("检索质量评估")
-    st.info("这里用于查看查询 trace、人工反馈和 evidence-level 评估指标。适合分析检索质量和后续优化方向。")
+    st.info(
+        "这里用于查看查询 trace、人工反馈和 evidence-level 评估指标。适合分析检索质量和后续优化方向。"
+    )
     if st.session_state.get("latest_trace_id"):
         st.caption(f"最近保存的 trace_id：{st.session_state['latest_trace_id']}")
 
@@ -813,7 +854,10 @@ def rag_evaluation_page() -> None:
                 summary = payload.get("summary", {})
                 st.success("Trace 级评估摘要已加载。")
                 st.metric("relevance_rate（相关率）", metric_value(summary.get("relevance_rate")))
-                st.metric("no_evidence_accuracy（无证据判断准确率）", metric_value(summary.get("no_evidence_accuracy")))
+                st.metric(
+                    "no_evidence_accuracy（无证据判断准确率）",
+                    metric_value(summary.get("no_evidence_accuracy")),
+                )
                 st.json(summary)
 
     with col2:
@@ -827,7 +871,9 @@ def rag_evaluation_page() -> None:
                 summary = payload.get("summary", {})
                 metric_cols = st.columns(3)
                 st.success("证据级评估摘要已加载。")
-                metric_cols[0].metric("Recall@K", metric_value(summary.get("recall_at_k", summary.get("recall_at_5"))))
+                metric_cols[0].metric(
+                    "Recall@K", metric_value(summary.get("recall_at_k", summary.get("recall_at_5")))
+                )
                 metric_cols[1].metric("MRR", metric_value(summary.get("mrr")))
                 metric_cols[2].metric("nDCG@5", metric_value(summary.get("ndcg_at_5")))
                 st.json(summary)
@@ -839,13 +885,17 @@ def rag_evaluation_page() -> None:
         placeholder="使用最近保存的 trace_id，或手动输入",
     )
     if st.button("加载 Trace 证据级详情", disabled=not trace_id.strip()):
-        payload, error = api_request("GET", f"/api/rag/evaluation/traces/{trace_id.strip()}/evidence")
+        payload, error = api_request(
+            "GET", f"/api/rag/evaluation/traces/{trace_id.strip()}/evidence"
+        )
         render_error(error)
         if payload:
             if payload.get("success"):
                 st.success("Trace 证据级详情已加载。")
             else:
-                st.error(payload.get("error") or payload.get("message") or "Trace 证据级详情加载失败。")
+                st.error(
+                    payload.get("error") or payload.get("message") or "Trace 证据级详情加载失败。"
+                )
             evidence = payload.get("evidence", [])
             if evidence:
                 st.dataframe(evidence, use_container_width=True)
@@ -871,7 +921,11 @@ def _render_eval_mode_table(summary: dict) -> None:
     if not isinstance(by_mode, dict) or not by_mode:
         st.info("暂无分组指标。")
         return
-    rows = [{"retrieval_mode": mode, **metrics} for mode, metrics in by_mode.items() if isinstance(metrics, dict)]
+    rows = [
+        {"retrieval_mode": mode, **metrics}
+        for mode, metrics in by_mode.items()
+        if isinstance(metrics, dict)
+    ]
     st.dataframe(rows, use_container_width=True)
 
 
@@ -881,7 +935,9 @@ def _render_eval_results_table(results: list[dict]) -> None:
         st.info("暂无 results 明细。")
         return
 
-    modes = sorted({str(item.get("retrieval_mode")) for item in results if item.get("retrieval_mode")})
+    modes = sorted(
+        {str(item.get("retrieval_mode")) for item in results if item.get("retrieval_mode")}
+    )
     selected_modes = st.multiselect("retrieval_mode 过滤", options=modes, default=modes)
     only_errors = st.checkbox("只看错误", value=False)
     keyword = st.text_input("query_id / query 关键词", value="")

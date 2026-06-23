@@ -1,17 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import date, datetime
 import re
 import ssl
+import xml.etree.ElementTree as ET
+from dataclasses import dataclass, field
+from datetime import date, datetime
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
-import xml.etree.ElementTree as ET
 
 import certifi
-
 
 ARXIV_API_URL = "https://export.arxiv.org/api/query"
 STOP_WORDS = {
@@ -101,7 +100,15 @@ def search_papers(
         phrases=phrases,
         synonyms=synonyms,
     )
-    plans = _build_arxiv_query_plans(terms, published_from=published_from, published_to=published_to)
+    plans = _build_arxiv_query_plans(
+        terms, published_from=published_from, published_to=published_to
+    )
+    if not plans:
+        return PaperSearchResult(
+            papers=[],
+            source="unavailable",
+            error="无法形成有效英文检索词，请补充英文关键词后重试。",
+        )
     attempted_queries: list[dict[str, Any]] = []
     collected: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -187,7 +194,9 @@ def search_papers(
         source="arxiv",
         error="; ".join(errors) if errors else None,
         query_level=attempted_queries[-1]["query_level"] if attempted_queries else None,
-        effective_arxiv_query=attempted_queries[-1]["effective_arxiv_query"] if attempted_queries else None,
+        effective_arxiv_query=attempted_queries[-1]["effective_arxiv_query"]
+        if attempted_queries
+        else None,
         attempted_queries=attempted_queries,
         insufficient_results_within_date_range=bool(published_from or published_to),
     )
@@ -333,7 +342,13 @@ def _build_arxiv_query_plans(
 
     strict_parts = [*required_parts, *phrase_parts, *optional_parts]
     if strict_parts:
-        plans.append(ArxivQueryPlan(1, _with_date_range(" AND ".join(strict_parts), published_from, published_to), "strict"))
+        plans.append(
+            ArxivQueryPlan(
+                1,
+                _with_date_range(" AND ".join(strict_parts), published_from, published_to),
+                "strict",
+            )
+        )
 
     if required_parts and optional_parts:
         plans.append(
@@ -377,13 +392,24 @@ def _build_arxiv_query_plans(
         )
 
     if not plans:
-        plans.append(ArxivQueryPlan(1, _with_date_range(_field_term(" ".join(terms.optional_terms)), published_from, published_to), "raw"))
+        raw_query = _field_term(" ".join(terms.optional_terms))
+        if raw_query:
+            plans.append(
+                ArxivQueryPlan(
+                    1,
+                    _with_date_range(raw_query, published_from, published_to),
+                    "raw",
+                )
+            )
 
     return _dedupe_plans(plans)
 
 
 def _build_arxiv_query(query: str) -> str:
-    return _build_arxiv_query_plans(_build_search_terms(query))[0].query
+    plans = _build_arxiv_query_plans(_build_search_terms(query))
+    if not plans:
+        raise ValueError("无法形成有效英文检索词")
+    return plans[0].query
 
 
 def _tokenize_query(query: str) -> list[str]:
@@ -468,11 +494,7 @@ def _normalize_url(url: str) -> str:
 
 
 def _excluded_identities(urls: list[str], arxiv_ids: list[str]) -> set[str]:
-    identities = {
-        str(value).strip().lower().removesuffix(".pdf")
-        for value in arxiv_ids
-        if value
-    }
+    identities = {str(value).strip().lower().removesuffix(".pdf") for value in arxiv_ids if value}
     for url in urls:
         identity = _arxiv_id_from_url(url) or _normalize_url(url)
         if identity:

@@ -13,7 +13,7 @@ from app.services.search_query_translation_service import (
     SearchQueryTranslation,
     SearchQueryTranslationService,
 )
-from app.tools.search_papers import PaperSearchResult
+from app.tools.search_papers import PaperSearchResult, _build_arxiv_query, search_papers
 
 
 class FakeClient:
@@ -84,7 +84,10 @@ def test_english_query_does_not_call_llm() -> None:
     ("source", "translated"),
     [
         ("甚低频传播时延修正", "VLF propagation delay correction"),
-        ("RAG 检索增强生成在医学问答中的幻觉评估", "RAG retrieval augmented generation hallucination evaluation medical question answering"),
+        (
+            "RAG 检索增强生成在医学问答中的幻觉评估",
+            "RAG retrieval augmented generation hallucination evaluation medical question answering",
+        ),
         ("PNT 场景下 GPS 拒止环境的鲁棒定位", "PNT GPS denied environment robust positioning"),
     ],
 )
@@ -124,7 +127,7 @@ def test_chinese_translation_parses_structured_search_terms() -> None:
 
 
 def test_chinese_translation_strips_quotes_newlines_and_period() -> None:
-    client = FakeClient(reply=json.dumps({"search_query": "\"VLF\npropagation delay.\""}))
+    client = FakeClient(reply=json.dumps({"search_query": '"VLF\npropagation delay."'}))
     service = SearchQueryTranslationService(client=client)
 
     result = service.translate_for_search("VLF 传播时延")
@@ -141,26 +144,87 @@ def test_chinese_translation_strips_quotes_newlines_and_period() -> None:
         json.dumps({"search_query": "x" * 301}),
     ],
 )
-def test_invalid_chinese_translation_falls_back_to_original(reply: str) -> None:
+def test_invalid_chinese_translation_without_known_terms_is_explainable(reply: str) -> None:
     service = SearchQueryTranslationService(client=FakeClient(reply=reply))
 
     result = service.translate_for_search("中文检索主题")
 
-    assert result.search_query == "中文检索主题"
+    assert result.search_query == ""
     assert result.was_translated is False
-    assert result.translation_method == "fallback_original"
+    assert result.translation_method == "rule_fallback_unavailable"
 
 
-def test_translation_failure_falls_back_to_original() -> None:
+def test_translation_failure_uses_deterministic_term_fallback() -> None:
     from app.core.llm_client import LLMClientError
 
     service = SearchQueryTranslationService(client=FakeClient(error=LLMClientError("timeout")))
 
     result = service.translate_for_search("电离层 VLF 时延")
 
-    assert result.search_query == "电离层 VLF 时延"
-    assert result.was_translated is False
-    assert result.translation_method == "fallback_original"
+    assert result.search_query == "ionosphere VLF delay"
+    assert result.was_translated is True
+    assert result.translation_method == "rule_fallback"
+
+
+def test_rule_fallback_maps_known_chinese_research_terms() -> None:
+    from app.core.llm_client import LLMClientError
+
+    service = SearchQueryTranslationService(client=FakeClient(error=LLMClientError("timeout")))
+
+    result = service.translate_for_search("甚低频传播时延修正")
+
+    assert result.search_query == "VLF propagation delay correction"
+    assert result.translation_method == "rule_fallback"
+
+
+def test_unknown_chinese_query_never_builds_or_sends_empty_arxiv_query(monkeypatch) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(
+        "app.tools.search_papers._search_arxiv_query",
+        lambda query, limit: calls.append(query) or [],
+    )
+
+    with pytest.raises(ValueError, match="无法形成有效英文检索词"):
+        _build_arxiv_query("中文检索主题")
+    result = search_papers("中文检索主题")
+
+    assert calls == []
+    assert result.papers == []
+    assert result.source == "unavailable"
+    assert "英文检索词" in (result.error or "")
+
+
+def test_mixed_query_rule_fallback_preserves_ascii_and_maps_chinese() -> None:
+    from app.core.llm_client import LLMClientError
+
+    service = SearchQueryTranslationService(client=FakeClient(error=LLMClientError("timeout")))
+
+    result = service.translate_for_search("RAG 大模型幻觉")
+
+    assert result.search_query == "RAG LLM hallucination"
+
+
+def test_search_history_records_rule_fallback_method(monkeypatch) -> None:
+    from app.core.llm_client import LLMClientError
+
+    captured: dict[str, object] = {}
+
+    def fake_search_papers(query: str, limit: int, **kwargs):
+        captured["query"] = query
+        return PaperSearchResult(papers=[], source="arxiv")
+
+    monkeypatch.setattr("app.services.paper_service.search_papers", fake_search_papers)
+    service = PaperService()
+    service.paper_repo = FakePaperRepo()
+    service.query_translation_service = SearchQueryTranslationService(
+        client=FakeClient(error=LLMClientError("timeout"))
+    )
+
+    papers = service.search_and_store(PaperSearchRequest(topic="甚低频传播时延修正", max_results=5))
+
+    assert papers == []
+    assert captured["query"] == "VLF propagation delay correction"
+    assert "translation_method=rule_fallback" in service.paper_repo.histories[0].query_text
 
 
 def test_chinese_translation_is_cached() -> None:
@@ -174,7 +238,9 @@ def test_chinese_translation_is_cached() -> None:
     assert len(client.calls) == 1
 
 
-def test_paper_service_uses_effective_english_query_and_preserves_original_history(monkeypatch) -> None:
+def test_paper_service_uses_effective_english_query_and_preserves_original_history(
+    monkeypatch,
+) -> None:
     captured: dict[str, object] = {}
 
     def fake_search_papers(query: str, limit: int, **kwargs):
@@ -194,7 +260,7 @@ def test_paper_service_uses_effective_english_query_and_preserves_original_histo
             ],
             source="arxiv",
             query_level=2,
-            effective_arxiv_query='all:VLF AND (all:delay OR all:correction)',
+            effective_arxiv_query="all:VLF AND (all:delay OR all:correction)",
             attempted_queries=[
                 {"query_level": 1, "effective_arxiv_query": "strict", "success": True},
                 {"query_level": 2, "effective_arxiv_query": "loose", "success": True},
@@ -229,7 +295,9 @@ def test_paper_service_uses_effective_english_query_and_preserves_original_histo
     history = service.paper_repo.histories[0]
     assert history.topic == "甚低频传播时延修正"
     assert "original_query=甚低频传播时延修正" in history.query_text
-    assert "effective_search_query=VLF propagation delay ionospheric correction" in history.query_text
+    assert (
+        "effective_search_query=VLF propagation delay ionospheric correction" in history.query_text
+    )
     assert "was_translated=true" in history.query_text
     assert "translation_method=llm" in history.query_text
     assert "query_level=2" in history.query_text
@@ -305,7 +373,9 @@ def test_feishu_chinese_message_reaches_search_papers_with_english_query(monkeyp
                 "message_id": "msg_search_cn",
                 "chat_id": "oc_1",
                 "message_type": "text",
-                "content": json.dumps({"text": "帮我搜索 1 篇甚低频传播时延修正论文"}, ensure_ascii=False),
+                "content": json.dumps(
+                    {"text": "帮我搜索 1 篇甚低频传播时延修正论文"}, ensure_ascii=False
+                ),
             },
         },
     }
@@ -339,7 +409,10 @@ def test_date_range_parsing_supports_chinese_recent_and_since_year() -> None:
         date(date.today().year - 5, date.today().month, date.today().day),
         date.today(),
     )
-    assert service._extract_published_range("2018 年以来 VLF 论文") == (date(2018, 1, 1), date.today())
+    assert service._extract_published_range("2018 年以来 VLF 论文") == (
+        date(2018, 1, 1),
+        date.today(),
+    )
     assert service._extract_published_range("2020 到 2025 年 VLF 论文") == (
         date(2020, 1, 1),
         date(2025, 12, 31),
@@ -350,7 +423,9 @@ def test_time_and_count_constraints_are_not_sent_to_translation(monkeypatch) -> 
     seen: dict[str, str] = {}
 
     def fake_search_papers(query: str, limit: int, **kwargs):
-        return PaperSearchResult(papers=[], source="arxiv", query_level=1, effective_arxiv_query="all:VLF")
+        return PaperSearchResult(
+            papers=[], source="arxiv", query_level=1, effective_arxiv_query="all:VLF"
+        )
 
     def fake_translate(query: str):
         seen["query"] = query
@@ -366,7 +441,9 @@ def test_time_and_count_constraints_are_not_sent_to_translation(monkeypatch) -> 
     service.paper_repo = FakePaperRepo()
     service.query_translation_service = SimpleNamespace(translate_for_search=fake_translate)
 
-    service.search_and_store(PaperSearchRequest(topic="帮我搜索几篇 VLF 传播时延相关的论文，要近十年的", max_results=3))
+    service.search_and_store(
+        PaperSearchRequest(topic="帮我搜索几篇 VLF 传播时延相关的论文，要近十年的", max_results=3)
+    )
 
     assert seen["query"] == "VLF 传播时延"
 
@@ -414,7 +491,9 @@ def test_existing_same_url_is_reused_without_duplicate_create(monkeypatch) -> No
         )
     )
 
-    papers = service.search_and_store(PaperSearchRequest(topic="VLF propagation delay", max_results=1))
+    papers = service.search_and_store(
+        PaperSearchRequest(topic="VLF propagation delay", max_results=1)
+    )
 
     assert papers == [existing]
     assert service.paper_repo.created == []

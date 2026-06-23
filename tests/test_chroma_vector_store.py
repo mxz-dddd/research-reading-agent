@@ -44,9 +44,7 @@ def test_chroma_adapter_uses_dynamic_import(monkeypatch: pytest.MonkeyPatch) -> 
     store.upsert_vectors("hash:hash:2", [("c1", [1.0, 0.0])])
 
     assert FakePersistentClient.last_path == "tmp/chroma-test"
-    assert store.get_vectors(["c1", "missing"], "hash:hash:2") == {
-        "c1": [1.0, 0.0]
-    }
+    assert store.get_vectors(["c1", "missing"], "hash:hash:2") == {"c1": [1.0, 0.0]}
 
 
 def test_chroma_adapter_missing_dependency_has_clear_error(

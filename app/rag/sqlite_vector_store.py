@@ -1,8 +1,8 @@
 """Optional SQLite-backed embedding cache for PaperWeave."""
 
-from contextlib import closing
-from datetime import datetime, timezone
 import json
+from contextlib import closing
+from datetime import UTC, datetime
 from typing import Any
 
 from app.core.database import get_connection
@@ -40,7 +40,7 @@ class SqliteVectorStore:
     ) -> None:
         if not items:
             return
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         with closing(get_connection()) as conn:
             conn.executemany(
                 """

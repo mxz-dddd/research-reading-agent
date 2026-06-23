@@ -1,11 +1,10 @@
-from datetime import datetime, timezone
 import json
+from datetime import UTC, datetime
 from sqlite3 import Row
 from uuid import uuid4
 
 from app.core.database import get_connection
 from app.schemas.rag import RagTraceFeedbackRead
-
 
 RAG_RELEVANCE_LABELS = {
     "relevant",
@@ -17,7 +16,7 @@ RAG_RELEVANCE_LABELS = {
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _row_to_feedback(row: Row) -> RagTraceFeedbackRead:
@@ -56,7 +55,9 @@ class RagFeedbackRepository:
                 ),
             )
             conn.commit()
-            row = conn.execute("SELECT * FROM rag_trace_feedback WHERE id = ?", (cursor.lastrowid,)).fetchone()
+            row = conn.execute(
+                "SELECT * FROM rag_trace_feedback WHERE id = ?", (cursor.lastrowid,)
+            ).fetchone()
         return _row_to_feedback(row)
 
     def get_latest_feedback_for_trace(self, trace_id: str) -> RagTraceFeedbackRead | None:
@@ -113,7 +114,9 @@ class RagFeedbackRepository:
 
         distribution = {label: 0 for label in RAG_RELEVANCE_LABELS}
         for feedback in latest_by_trace.values():
-            distribution[feedback.relevance_label] = distribution.get(feedback.relevance_label, 0) + 1
+            distribution[feedback.relevance_label] = (
+                distribution.get(feedback.relevance_label, 0) + 1
+            )
 
         total = len(latest_by_trace)
         relevant_count = distribution.get("relevant", 0)
@@ -124,9 +127,7 @@ class RagFeedbackRepository:
         relevance_rate = (relevant_count + partially_relevant_count) / total if total else 0.0
         no_evidence_total = no_evidence_correct_count + no_evidence_incorrect_count
         no_evidence_accuracy = (
-            no_evidence_correct_count / no_evidence_total
-            if no_evidence_total
-            else None
+            no_evidence_correct_count / no_evidence_total if no_evidence_total else None
         )
         return {
             "total_feedback": total,

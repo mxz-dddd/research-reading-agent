@@ -41,8 +41,20 @@ def test_batch_ingest_answer_hides_internal_fields() -> None:
         "succeeded": 1,
         "failed": 1,
         "items": [
-            {"position": 1, "paper_id": 101, "title": "A", "status": "success", "ingest_status": "pdf_text"},
-            {"position": 2, "paper_id": 102, "title": "B", "status": "failed", "error": "PDF 下载失败"},
+            {
+                "position": 1,
+                "paper_id": 101,
+                "title": "A",
+                "status": "success",
+                "ingest_status": "pdf_text",
+            },
+            {
+                "position": 2,
+                "paper_id": 102,
+                "title": "B",
+                "status": "failed",
+                "error": "PDF 下载失败",
+            },
         ],
     }
 
@@ -56,7 +68,14 @@ def test_batch_ingest_answer_hides_internal_fields() -> None:
     assert "阅读方式：PDF全文" in answer
     assert "2. B" in answer
     assert "原因：PDF 下载失败" in answer
-    for internal in ("batch_ingest_papers", "ingest_paper", "read_papers", "paper_ids", "routing_method", "chosen_tool"):
+    for internal in (
+        "batch_ingest_papers",
+        "ingest_paper",
+        "read_papers",
+        "paper_ids",
+        "routing_method",
+        "chosen_tool",
+    ):
         assert internal not in answer
 
 

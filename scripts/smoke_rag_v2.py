@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -155,7 +154,7 @@ def _parse_args() -> argparse.Namespace:
             ".venv/bin/python scripts/smoke_rag_v2.py \\\n"
             "  --base-url http://127.0.0.1:8000 \\\n"
             "  --paper-id 1 \\\n"
-            "  --query \"这篇论文的方法和实验结论是什么？\" \\\n"
+            '  --query "这篇论文的方法和实验结论是什么？" \\\n'
             "  --retrieval-mode hybrid"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -213,7 +212,9 @@ def main() -> None:
     request_payload = _build_payload(args)
 
     _print_section("3. RAG Search")
-    search_status, search_body, search_raw = _post_json(base_url, "/api/rag/search", request_payload)
+    search_status, search_body, search_raw = _post_json(
+        base_url, "/api/rag/search", request_payload
+    )
     if not _is_success(search_status):
         _fail("RAG search", search_status, search_raw or search_body)
     search_evidence_count = len(_evidence_items(search_body))
@@ -224,7 +225,9 @@ def main() -> None:
     _print_pipeline(search_body)
 
     _print_section("4. RAG Answer")
-    answer_status, answer_body, answer_raw = _post_json(base_url, "/api/rag/answer", request_payload)
+    answer_status, answer_body, answer_raw = _post_json(
+        base_url, "/api/rag/answer", request_payload
+    )
     if not _is_success(answer_status):
         _fail("RAG answer", answer_status, answer_raw or answer_body)
     answer_context_pack_id = _extract_context_pack_id(answer_body)
@@ -240,7 +243,9 @@ def main() -> None:
     context_pack_id = _extract_context_pack_id(search_body, answer_body)
     context_pack_loaded = False
     if context_pack_id:
-        context_status, context_body, context_raw = _get_json(base_url, f"/api/rag/context-packs/{context_pack_id}")
+        context_status, context_body, context_raw = _get_json(
+            base_url, f"/api/rag/context-packs/{context_pack_id}"
+        )
         if not _is_success(context_status):
             _fail("Context Pack 读取", context_status, context_raw or context_body)
         context_pack_loaded = True
@@ -250,24 +255,32 @@ def main() -> None:
             print(f"item_count: {context_body.get('item_count')}")
             print(f"estimated_tokens: {context_body.get('estimated_tokens')}")
             print(f"token_budget: {context_body.get('token_budget')}")
-            print("item_type_counts:", json.dumps(_count_context_item_types(context_body.get("items")), ensure_ascii=False))
+            print(
+                "item_type_counts:",
+                json.dumps(
+                    _count_context_item_types(context_body.get("items")), ensure_ascii=False
+                ),
+            )
         else:
             print(_preview(context_body, 300))
     else:
         print("⚠️ response 中没有 context_pack_id，跳过 context pack 读取")
 
     print("\n✅ RAG v2 smoke test 通过")
-    print("summary:", json.dumps(
-        {
-            "base_url": base_url,
-            "retrieval_mode": args.retrieval_mode,
-            "paper_id": args.paper_id,
-            "search_evidence_count": search_evidence_count,
-            "answer_has_context_pack_id": bool(answer_context_pack_id),
-            "context_pack_loaded": context_pack_loaded,
-        },
-        ensure_ascii=False,
-    ))
+    print(
+        "summary:",
+        json.dumps(
+            {
+                "base_url": base_url,
+                "retrieval_mode": args.retrieval_mode,
+                "paper_id": args.paper_id,
+                "search_evidence_count": search_evidence_count,
+                "answer_has_context_pack_id": bool(answer_context_pack_id),
+                "context_pack_loaded": context_pack_loaded,
+            },
+            ensure_ascii=False,
+        ),
+    )
 
 
 if __name__ == "__main__":

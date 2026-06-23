@@ -39,7 +39,10 @@ def test_time_followup_inherits_query_and_limit() -> None:
     assert resolution.tool_name == "search_papers"
     assert resolution.arguments["topic"] == "VLF传播时延"
     assert resolution.arguments["max_results"] == 5
-    assert resolution.arguments["published_from"] == date(date.today().year - 10, date.today().month, date.today().day).isoformat()
+    assert (
+        resolution.arguments["published_from"]
+        == date(date.today().year - 10, date.today().month, date.today().day).isoformat()
+    )
     assert resolution.arguments["published_to"] == date.today().isoformat()
 
 
@@ -70,7 +73,10 @@ def test_change_to_recent_five_years() -> None:
 
     assert resolution.tool_name == "search_papers"
     assert resolution.arguments["topic"] == "VLF传播时延"
-    assert resolution.arguments["published_from"] == date(date.today().year - 5, date.today().month, date.today().day).isoformat()
+    assert (
+        resolution.arguments["published_from"]
+        == date(date.today().year - 5, date.today().month, date.today().day).isoformat()
+    )
 
 
 def test_ordinal_reference_resolves_detail_to_real_paper_id() -> None:
@@ -118,7 +124,12 @@ def test_continue_search_inherits_context() -> None:
 def test_desired_total_only_requests_missing_results() -> None:
     state = _state()
     refs = [
-        {"position": index, "paper_id": 100 + index, "title": f"Paper {index}", "url": f"https://arxiv.org/abs/{index}"}
+        {
+            "position": index,
+            "paper_id": 100 + index,
+            "title": f"Paper {index}",
+            "url": f"https://arxiv.org/abs/{index}",
+        }
         for index in range(1, 6)
     ]
     state = ConversationState(**{**state.__dict__, "last_result_refs": refs})
@@ -129,6 +140,43 @@ def test_desired_total_only_requests_missing_results() -> None:
     assert resolution.desired_total_limit == 10
     assert resolution.requested_additional_limit == 5
     assert resolution.arguments["max_results"] == 5
+
+
+def test_desired_total_equal_to_current_results_does_not_search() -> None:
+    resolution = ConversationFollowupService().resolve("一共要5篇", _state_with_results(5))
+
+    assert resolution.direct_reply is True
+    assert resolution.tool_name is None
+    assert "已满足" in resolution.resolved_message
+    assert "5 篇" in resolution.resolved_message
+
+
+def test_desired_total_below_current_results_does_not_search_or_clear_context() -> None:
+    resolution = ConversationFollowupService().resolve("一共要3篇", _state_with_results(5))
+
+    assert resolution.direct_reply is True
+    assert resolution.tool_name is None
+    assert resolution.clear_context is False
+    assert "超过" in resolution.resolved_message
+
+
+def test_desired_total_from_empty_results_searches_requested_count() -> None:
+    resolution = ConversationFollowupService().resolve("一共要5篇", _state_with_results(0))
+
+    assert resolution.tool_name == "search_papers"
+    assert resolution.arguments["max_results"] == 5
+    assert resolution.append_mode is True
+
+
+def test_desired_total_without_topic_context_requests_topic() -> None:
+    state = _state_with_results(0)
+    state = ConversationState(**{**state.__dict__, "last_arguments": {"query": None, "limit": 5}})
+
+    resolution = ConversationFollowupService().resolve("一共要5篇", state)
+
+    assert resolution.direct_reply is True
+    assert resolution.tool_name is None
+    assert "研究主题" in resolution.resolved_message
 
 
 def test_time_change_replaces_instead_of_appending() -> None:
@@ -161,14 +209,21 @@ def test_no_context_means_not_followup() -> None:
 def _state_with_results(count: int) -> ConversationState:
     state = _state()
     refs = [
-        {"position": index, "paper_id": 100 + index, "title": f"Paper {index}", "url": f"https://arxiv.org/abs/{index}"}
+        {
+            "position": index,
+            "paper_id": 100 + index,
+            "title": f"Paper {index}",
+            "url": f"https://arxiv.org/abs/{index}",
+        }
         for index in range(1, count + 1)
     ]
     return ConversationState(**{**state.__dict__, "last_result_refs": refs})
 
 
 def test_batch_ingest_this_five_uses_current_results() -> None:
-    resolution = ConversationFollowupService().resolve("对这五篇都进行深入阅读", _state_with_results(5))
+    resolution = ConversationFollowupService().resolve(
+        "对这五篇都进行深入阅读", _state_with_results(5)
+    )
 
     assert resolution.tool_name == "batch_ingest_papers"
     assert resolution.arguments == {
@@ -179,7 +234,9 @@ def test_batch_ingest_this_five_uses_current_results() -> None:
 
 
 def test_batch_ingest_all_uses_all_current_results() -> None:
-    resolution = ConversationFollowupService().resolve("对刚才全部论文深入阅读", _state_with_results(5))
+    resolution = ConversationFollowupService().resolve(
+        "对刚才全部论文深入阅读", _state_with_results(5)
+    )
 
     assert resolution.arguments["paper_ids"] == [101, 102, 103, 104, 105]
 

@@ -1,12 +1,7 @@
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.core import database
 from app.repositories.rag_feedback_repo import RagFeedbackRepository
@@ -55,7 +50,9 @@ def test_rag_feedback_repo_list_feedback(feedback_repo: RagFeedbackRepository) -
     assert by_trace[0].trace_id == "trace_1"
 
 
-def test_rag_feedback_repo_summarize_feedback_uses_latest_label(feedback_repo: RagFeedbackRepository) -> None:
+def test_rag_feedback_repo_summarize_feedback_uses_latest_label(
+    feedback_repo: RagFeedbackRepository,
+) -> None:
     feedback_repo.create_feedback(trace_id="trace_1", relevance_label="irrelevant")
     feedback_repo.create_feedback(trace_id="trace_1", relevance_label="relevant")
     feedback_repo.create_feedback(trace_id="trace_2", relevance_label="partially_relevant")

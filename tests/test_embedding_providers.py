@@ -1,14 +1,8 @@
 import importlib
 import math
-import sys
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.rag.embeddings import HashEmbeddingProvider, get_embedding_provider
 
@@ -39,7 +33,9 @@ def test_hash_embedding_provider_embed_texts() -> None:
     assert all(len(vector) == 8 for vector in vectors)
 
 
-def test_get_embedding_provider_defaults_to_hash_without_import(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_embedding_provider_defaults_to_hash_without_import(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     def fail_import(name: str):
         if name == "sentence_transformers":
             raise AssertionError("sentence_transformers should not be imported for hash provider")
@@ -59,7 +55,9 @@ def test_get_embedding_provider_rejects_unknown_provider() -> None:
         get_embedding_provider("unknown")
 
 
-def test_sentence_transformers_provider_uses_dynamic_import(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_sentence_transformers_provider_uses_dynamic_import(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     class FakeSentenceTransformer:
         def __init__(self, model_name: str, device: str | None = None) -> None:
             self.model_name = model_name
@@ -112,7 +110,9 @@ def test_sentence_transformers_provider_auto_device_omits_device(
         def __init__(self, model_name: str, **kwargs) -> None:
             init_kwargs.update(kwargs)
 
-        def encode(self, texts, batch_size: int, normalize_embeddings: bool, convert_to_numpy: bool):
+        def encode(
+            self, texts, batch_size: int, normalize_embeddings: bool, convert_to_numpy: bool
+        ):
             return [[2.0, 0.0]]
 
     fake_module = SimpleNamespace(SentenceTransformer=FakeSentenceTransformer)
@@ -121,7 +121,9 @@ def test_sentence_transformers_provider_auto_device_omits_device(
         lambda name: fake_module,
     )
 
-    provider = get_embedding_provider("sentence_transformers", model_name="fake-model", device="auto")
+    provider = get_embedding_provider(
+        "sentence_transformers", model_name="fake-model", device="auto"
+    )
 
     assert init_kwargs == {}
     assert provider.embed_text("query") == [1.0, 0.0]

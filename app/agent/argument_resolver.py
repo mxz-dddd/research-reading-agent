@@ -7,14 +7,14 @@ from app.agent.fallback_router import (
     extract_evidence_relevance_score,
     extract_max_results,
     extract_rag_chunk_id,
-    extract_rag_query,
     extract_rag_feedback_notes,
+    extract_rag_query,
     extract_rag_relevance_label,
     extract_rag_trace_id,
     extract_search_topic,
     extract_top_k,
-    extract_workflow_topic,
     extract_workflow_index_rag,
+    extract_workflow_topic,
 )
 from app.schemas.agent import AgentQueryRequest
 
@@ -80,14 +80,18 @@ def resolve_arguments(
         return {
             "topic": topic,
             "max_results": int(arguments.get("max_results") or extract_max_results(payload.text)),
-            "accept_top_k": int(arguments.get("accept_top_k") or extract_accept_top_k(payload.text)),
+            "accept_top_k": int(
+                arguments.get("accept_top_k") or extract_accept_top_k(payload.text)
+            ),
             "ingest": bool(arguments.get("ingest", True)),
-            "index_rag": _bool_value(arguments.get("index_rag"), default=True) or extract_workflow_index_rag(payload.text),
+            "index_rag": _bool_value(arguments.get("index_rag"), default=True)
+            or extract_workflow_index_rag(payload.text),
             "rag_chunk_size": int(arguments.get("rag_chunk_size") or 800),
             "rag_chunk_overlap": int(arguments.get("rag_chunk_overlap") or 120),
             "generate_knowledge": bool(arguments.get("generate_knowledge", True)),
             "generate_innovation": bool(arguments.get("generate_innovation", True)),
-            "dry_run": _bool_value(arguments.get("dry_run"), default=False) or extract_dry_run(payload.text),
+            "dry_run": _bool_value(arguments.get("dry_run"), default=False)
+            or extract_dry_run(payload.text),
             "user_id": payload.user_id,
             "session_id": payload.session_id,
         }
@@ -126,7 +130,9 @@ def resolve_arguments(
             "session_id": payload.session_id,
             "retrieval_mode": arguments.get("retrieval_mode"),
         }
-        paper_id = _resolve_optional_paper_id_argument(arguments, payload=payload, session_repo=session_repo)
+        paper_id = _resolve_optional_paper_id_argument(
+            arguments, payload=payload, session_repo=session_repo
+        )
         if paper_id is not None:
             resolved["paper_id"] = paper_id
         return resolved
@@ -151,7 +157,9 @@ def resolve_arguments(
         trace_id = arguments.get("trace_id") or extract_rag_trace_id(payload.text)
         if not trace_id:
             raise ValueError("请提供 RAG trace_id，例如 trace_xxx。")
-        relevance_label = arguments.get("relevance_label") or extract_rag_relevance_label(payload.text)
+        relevance_label = arguments.get("relevance_label") or extract_rag_relevance_label(
+            payload.text
+        )
         notes = arguments.get("notes") or extract_rag_feedback_notes(payload.text)
         expected_terms = arguments.get("expected_terms") or []
         return {
@@ -219,7 +227,9 @@ def _resolve_paper_id_argument(
     payload: AgentQueryRequest,
     session_repo: Any,
 ) -> int:
-    paper_id = _resolve_optional_paper_id_argument(arguments, payload=payload, session_repo=session_repo)
+    paper_id = _resolve_optional_paper_id_argument(
+        arguments, payload=payload, session_repo=session_repo
+    )
     if paper_id is None:
         raise ValueError("请提供 paper_id，或使用“第 N 篇”引用最近一次搜索结果。")
     return paper_id

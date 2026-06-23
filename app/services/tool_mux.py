@@ -6,9 +6,9 @@ import inspect
 import json
 import time
 from collections import OrderedDict
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, field
-from typing import Any, Callable
-
+from typing import Any
 
 READ_ONLY_PREFIXES = ("get", "list", "read", "search", "status")
 MUTATING_PREFIXES = (
@@ -149,11 +149,7 @@ class ToolCache:
         return entry.value
 
     def set(self, tool_name: str, arguments: dict[str, Any] | None, result: ToolResult) -> None:
-        if (
-            self.ttl_seconds <= 0
-            or tool_name not in self._read_only_tools
-            or not result.success
-        ):
+        if self.ttl_seconds <= 0 or tool_name not in self._read_only_tools or not result.success:
             return
 
         key = self.make_key(tool_name, arguments)
@@ -246,7 +242,7 @@ class ToolMux:
                 duration_ms=self._duration_ms(started),
             ).to_dict()
 
-    async def parallel(self, calls: list[dict[str, Any] | ToolCall]) -> dict[str, Any]:
+    async def parallel(self, calls: Sequence[dict[str, Any] | ToolCall]) -> dict[str, Any]:
         semaphore = asyncio.Semaphore(self.max_concurrency)
 
         async def run_one(raw_call: dict[str, Any] | ToolCall) -> dict[str, Any]:

@@ -7,14 +7,14 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from enum import Enum
 import threading
+from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Any
 from uuid import uuid4
 
 
-class WorkflowJobStatus(str, Enum):
+class WorkflowJobStatus(StrEnum):
     QUEUED = "queued"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -36,7 +36,7 @@ class WorkflowJobStore:
                 "topic": topic,
                 "run_id": None,
                 "error": None,
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": datetime.now(UTC).isoformat(),
                 "finished_at": None,
             }
         return job_id
@@ -54,13 +54,11 @@ class WorkflowJobStore:
         self._update(
             job_id,
             status=(
-                WorkflowJobStatus.COMPLETED.value
-                if success
-                else WorkflowJobStatus.FAILED.value
+                WorkflowJobStatus.COMPLETED.value if success else WorkflowJobStatus.FAILED.value
             ),
             run_id=run_id,
             error=None if success else error,
-            finished_at=datetime.now(timezone.utc).isoformat(),
+            finished_at=datetime.now(UTC).isoformat(),
         )
 
     def mark_failed(self, job_id: str, error: str, run_id: str | None = None) -> None:
@@ -69,7 +67,7 @@ class WorkflowJobStore:
             status=WorkflowJobStatus.FAILED.value,
             run_id=run_id,
             error=error,
-            finished_at=datetime.now(timezone.utc).isoformat(),
+            finished_at=datetime.now(UTC).isoformat(),
         )
 
     def get_job(self, job_id: str) -> dict[str, Any] | None:

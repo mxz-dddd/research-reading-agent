@@ -68,7 +68,9 @@ class HybridRetriever:
         sparse_by_id = {chunk.chunk_id: chunk for chunk in sparse_chunks}
         read_by_id = {chunk.chunk_id: chunk for chunk in all_chunks}
         merged: list[RagSearchChunk] = []
-        for chunk_id, rrf_score in sorted(rrf_scores.items(), key=lambda item: item[1], reverse=True):
+        for chunk_id, rrf_score in sorted(
+            rrf_scores.items(), key=lambda item: item[1], reverse=True
+        ):
             if chunk_id in sparse_by_id:
                 item = sparse_by_id[chunk_id]
             else:
@@ -79,7 +81,7 @@ class HybridRetriever:
                     provider_name=provider_metadata["embedding_provider"],
                 )
             item.retrieval_scores = {
-                "sparse": sparse_by_id.get(chunk_id).score if chunk_id in sparse_by_id else 0.0,
+                "sparse": sparse_by_id[chunk_id].score if chunk_id in sparse_by_id else 0.0,
                 "dense": dense_scores.get(chunk_id, 0.0),
                 "rrf": rrf_score,
             }
@@ -146,7 +148,9 @@ class HybridRetriever:
                 if callable(embed_texts)
                 else [self.embedding_provider.embed_text(text) for text in texts]
             )
-            new_items = [(chunk.chunk_id, vector) for chunk, vector in zip(missing, vectors)]
+            new_items = [
+                (chunk.chunk_id, vector) for chunk, vector in zip(missing, vectors, strict=False)
+            ]
             stored.update(dict(new_items))
             if self.vector_store and store_error is None:
                 try:

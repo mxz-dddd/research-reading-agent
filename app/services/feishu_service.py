@@ -1,4 +1,3 @@
-import base64
 import hashlib
 import hmac
 import json
@@ -122,7 +121,8 @@ class FeishuService:
             self._send_reply_with_logging(message.get("message_id"), final_answer, context)
             return
 
-        if not message.get("text"):
+        message_text = message.get("text")
+        if not message_text:
             final_answer = "我没有读到有效文本，请重新发送你的问题。"
             self._send_reply_with_logging(message.get("message_id"), final_answer, context)
             return
@@ -136,7 +136,7 @@ class FeishuService:
                 state = self.context_service.get_state(session_id)
                 turns = self.context_service.recent_turns(session_id, limit=6)
                 resolution = self.followup_service.resolve(
-                    message["text"],
+                    message_text,
                     state,
                     recent_turns=turns,
                 )
@@ -160,7 +160,7 @@ class FeishuService:
                 if resolution.direct_reply:
                     self.context_service.save_user_turn(
                         session_id=session_id,
-                        message=message["text"],
+                        message=message_text,
                         message_id=message.get("message_id"),
                     )
                     self.context_service.save_assistant_turn(
@@ -176,13 +176,13 @@ class FeishuService:
 
                 self.context_service.save_user_turn(
                     session_id=session_id,
-                    message=message["text"],
+                    message=message_text,
                     message_id=message.get("message_id"),
                 )
                 payload = AgentQueryRequest(
                     user_id=user_id,
                     session_id=session_id,
-                    message=resolution.resolved_message if resolution.is_followup else message["text"],
+                    message=resolution.resolved_message if resolution.is_followup else message_text,
                 )
                 if resolution.is_followup and resolution.tool_name:
                     agent_response = self.agent_service.query_with_route(
@@ -202,7 +202,7 @@ class FeishuService:
                         chat_id=message.get("chat_id"),
                         user_id=message.get("open_id"),
                         thread_id=thread_id,
-                        user_message=message["text"],
+                        user_message=message_text,
                         assistant_text=reply_text,
                         response=agent_response,
                         previous_state=state,
@@ -254,13 +254,17 @@ class FeishuService:
 
         if "encrypt" in payload:
             self._log_event("webhook_encrypted_event_rejected")
-            raise HTTPException(status_code=400, detail="当前暂不支持飞书加密事件，请先关闭事件加密。")
+            raise HTTPException(
+                status_code=400, detail="当前暂不支持飞书加密事件，请先关闭事件加密。"
+            )
         return payload
 
     def _is_challenge(self, payload: dict[str, Any]) -> bool:
         return payload.get("type") == "url_verification" and "challenge" in payload
 
-    def _verify_token(self, payload: dict[str, Any], *, context: dict[str, Any] | None = None) -> None:
+    def _verify_token(
+        self, payload: dict[str, Any], *, context: dict[str, Any] | None = None
+    ) -> None:
         expected = settings.feishu_verification_token
         context = context or self._event_context(payload, {})
         if not expected:
@@ -290,21 +294,39 @@ class FeishuService:
             )
             return
         if not settings.feishu_encrypt_key:
-            self._log_event("signature_verification_failed", level="warning", **context, reason="missing_encrypt_key")
-            raise HTTPException(status_code=500, detail="已启用飞书签名校验，但缺少 FEISHU_ENCRYPT_KEY")
+            self._log_event(
+                "signature_verification_failed",
+                level="warning",
+                **context,
+                reason="missing_encrypt_key",
+            )
+            raise HTTPException(
+                status_code=500, detail="已启用飞书签名校验，但缺少 FEISHU_ENCRYPT_KEY"
+            )
 
-        timestamp = headers.get("x-lark-request-timestamp") or headers.get("x-feishu-request-timestamp")
+        timestamp = headers.get("x-lark-request-timestamp") or headers.get(
+            "x-feishu-request-timestamp"
+        )
         nonce = headers.get("x-lark-request-nonce") or headers.get("x-feishu-request-nonce")
         signature = headers.get("x-lark-signature") or headers.get("x-feishu-signature")
         if not timestamp or not nonce or not signature:
-            self._log_event("signature_verification_failed", level="warning", **context, reason="missing_headers")
+            self._log_event(
+                "signature_verification_failed",
+                level="warning",
+                **context,
+                reason="missing_headers",
+            )
             raise HTTPException(status_code=401, detail="飞书签名请求头不完整")
 
-        base = f"{timestamp}{nonce}{settings.feishu_encrypt_key}".encode("utf-8") + raw_body
-        digest = hmac.new(settings.feishu_encrypt_key.encode("utf-8"), base, hashlib.sha256).digest()
-        expected = base64.b64encode(digest).decode("utf-8")
+        signed_content = f"{timestamp}{nonce}{settings.feishu_encrypt_key}".encode() + raw_body
+        expected = hashlib.sha256(signed_content).hexdigest()
         if not hmac.compare_digest(expected, signature):
-            self._log_event("signature_verification_failed", level="warning", **context, reason="signature_mismatch")
+            self._log_event(
+                "signature_verification_failed",
+                level="warning",
+                **context,
+                reason="signature_mismatch",
+            )
             raise HTTPException(status_code=401, detail="飞书签名校验失败")
         self._log_event("signature_verification_success", **context)
 
@@ -401,7 +423,9 @@ class FeishuService:
 
     def _tenant_access_token(self) -> str:
         if not settings.feishu_app_id or not settings.feishu_app_secret:
-            raise RuntimeError("缺少 FEISHU_APP_ID 或 FEISHU_APP_SECRET，无法获取 tenant_access_token")
+            raise RuntimeError(
+                "缺少 FEISHU_APP_ID 或 FEISHU_APP_SECRET，无法获取 tenant_access_token"
+            )
 
         body = json.dumps(
             {
@@ -418,7 +442,9 @@ class FeishuService:
         with urlopen(request, timeout=20, context=self._ssl_context()) as response:
             data = json.loads(response.read().decode("utf-8"))
         if data.get("code") != 0:
-            raise RuntimeError(f"获取 tenant_access_token 失败：code={data.get('code')} msg={data.get('msg')}")
+            raise RuntimeError(
+                f"获取 tenant_access_token 失败：code={data.get('code')} msg={data.get('msg')}"
+            )
         return data["tenant_access_token"]
 
     def _reply_to_feishu(
@@ -430,7 +456,9 @@ class FeishuService:
     ) -> dict[str, Any]:
         context = context or {"message_id": message_id}
         if not message_id:
-            self._log_event("feishu_reply_failed", level="warning", **context, reason="missing_message_id")
+            self._log_event(
+                "feishu_reply_failed", level="warning", **context, reason="missing_message_id"
+            )
             return {"success": False, "error": "缺少 message_id，无法回复飞书消息"}
 
         try:
@@ -463,7 +491,10 @@ class FeishuService:
                     feishu_code=data.get("code"),
                     feishu_msg=data.get("msg"),
                 )
-                return {"success": False, "error": {"code": data.get("code"), "msg": data.get("msg")}}
+                return {
+                    "success": False,
+                    "error": {"code": data.get("code"), "msg": data.get("msg")},
+                }
             self._log_event(
                 "feishu_reply_api_success",
                 **context,
@@ -528,6 +559,3 @@ class FeishuService:
 
     def _ssl_context(self) -> ssl.SSLContext:
         return ssl.create_default_context(cafile=certifi.where())
-
-
-

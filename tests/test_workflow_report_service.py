@@ -1,12 +1,7 @@
-import sys
 from pathlib import Path
 
 import pytest
 from fastapi import HTTPException
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.schemas.workflow import WorkflowRunDetail
 from app.services.workflow_report_service import DRY_RUN_REPORT_WARNING, WorkflowReportService
@@ -35,11 +30,41 @@ def fake_workflow_run(run_id: str = "run_report_001", dry_run: bool = True) -> W
             "topic": "large language model agent",
             "dry_run": dry_run,
             "steps": [
-                {"step": "search_papers", "success": True, "summary": "fake search", "data": {}, "error": None},
-                {"step": "accept_top_k", "success": True, "summary": "fake accept", "data": {}, "error": None},
-                {"step": "ingest_papers", "success": True, "summary": "fake ingest", "data": {}, "error": None},
-                {"step": "generate_knowledge", "success": True, "summary": "fake knowledge", "data": {}, "error": None},
-                {"step": "generate_innovation", "success": True, "summary": "fake innovation", "data": {}, "error": None},
+                {
+                    "step": "search_papers",
+                    "success": True,
+                    "summary": "fake search",
+                    "data": {},
+                    "error": None,
+                },
+                {
+                    "step": "accept_top_k",
+                    "success": True,
+                    "summary": "fake accept",
+                    "data": {},
+                    "error": None,
+                },
+                {
+                    "step": "ingest_papers",
+                    "success": True,
+                    "summary": "fake ingest",
+                    "data": {},
+                    "error": None,
+                },
+                {
+                    "step": "generate_knowledge",
+                    "success": True,
+                    "summary": "fake knowledge",
+                    "data": {},
+                    "error": None,
+                },
+                {
+                    "step": "generate_innovation",
+                    "success": True,
+                    "summary": "fake innovation",
+                    "data": {},
+                    "error": None,
+                },
             ],
             "searched_papers": [
                 {
@@ -51,7 +76,9 @@ def fake_workflow_run(run_id: str = "run_report_001", dry_run: bool = True) -> W
                     "screening_summary": "fake summary",
                 }
             ],
-            "accepted_papers": [{"id": "DRY-1", "title": "[dry_run/mock] Paper 1", "status": "accepted"}],
+            "accepted_papers": [
+                {"id": "DRY-1", "title": "[dry_run/mock] Paper 1", "status": "accepted"}
+            ],
             "ingested_papers": [
                 {
                     "id": "DRY-1",
@@ -92,7 +119,9 @@ def test_workflow_report_service_generates_and_saves_markdown(
     tmp_path: Path,
 ) -> None:
     service = WorkflowReportService()
-    monkeypatch.setattr(service.workflow_repo, "get_by_run_id", lambda run_id: fake_workflow_run(run_id))
+    monkeypatch.setattr(
+        service.workflow_repo, "get_by_run_id", lambda run_id: fake_workflow_run(run_id)
+    )
     service.report_dir = tmp_path / "reports"
 
     result = service.generate_report("run_report_001")
@@ -113,7 +142,11 @@ def test_workflow_report_service_dry_run_report_contains_warning(
     tmp_path: Path,
 ) -> None:
     service = WorkflowReportService()
-    monkeypatch.setattr(service.workflow_repo, "get_by_run_id", lambda run_id: fake_workflow_run(run_id, dry_run=True))
+    monkeypatch.setattr(
+        service.workflow_repo,
+        "get_by_run_id",
+        lambda run_id: fake_workflow_run(run_id, dry_run=True),
+    )
     service.report_dir = tmp_path / "reports"
 
     result = service.generate_report("run_report_001")
@@ -123,7 +156,9 @@ def test_workflow_report_service_dry_run_report_contains_warning(
     assert DRY_RUN_REPORT_WARNING in result.report_markdown
 
 
-def test_workflow_report_service_raises_when_workflow_run_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_workflow_report_service_raises_when_workflow_run_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     service = WorkflowReportService()
 
     def raise_missing(run_id: str) -> None:
@@ -142,7 +177,9 @@ def test_workflow_report_service_reads_existing_report(
     tmp_path: Path,
 ) -> None:
     service = WorkflowReportService()
-    monkeypatch.setattr(service.workflow_repo, "get_by_run_id", lambda run_id: fake_workflow_run(run_id))
+    monkeypatch.setattr(
+        service.workflow_repo, "get_by_run_id", lambda run_id: fake_workflow_run(run_id)
+    )
     service.report_dir = tmp_path / "reports"
     generated = service.generate_report("run_report_001")
 

@@ -2,7 +2,6 @@ from typing import Any
 
 from app.schemas.paper import PaperRead
 
-
 GAP_CATEGORIES = [
     "problem gap",
     "method gap",
@@ -98,7 +97,9 @@ def _data_gap(papers: list[PaperRead]) -> dict[str, Any]:
 
 
 def _evaluation_gap(papers: list[PaperRead]) -> dict[str, Any]:
-    evidence = _paper_evidence(papers, ["experiment", "evaluation", "metric", "benchmark", "实验", "评估"])
+    evidence = _paper_evidence(
+        papers, ["experiment", "evaluation", "metric", "benchmark", "实验", "评估"]
+    )
     return _idea(
         title="设计更能反映真实价值的评估指标",
         category="evaluation gap",
@@ -112,7 +113,9 @@ def _evaluation_gap(papers: list[PaperRead]) -> dict[str, Any]:
 
 
 def _engineering_gap(papers: list[PaperRead]) -> dict[str, Any]:
-    evidence = _paper_evidence(papers, ["deployment", "latency", "efficiency", "system", "工程", "部署"])
+    evidence = _paper_evidence(
+        papers, ["deployment", "latency", "efficiency", "system", "工程", "部署"]
+    )
     return _idea(
         title="面向低成本部署优化系统流程",
         category="engineering gap",
@@ -174,7 +177,9 @@ def _paper_evidence(papers: list[PaperRead], keywords: list[str]) -> list[dict[s
         {
             "paper_id": paper.id,
             "title": paper.title,
-            "evidence": (paper.deep_summary or paper.screening_summary or paper.abstract or "暂无明确证据")[:260],
+            "evidence": (
+                paper.deep_summary or paper.screening_summary or paper.abstract or "暂无明确证据"
+            )[:260],
         }
         for paper in papers[:2]
     ]

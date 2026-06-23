@@ -32,7 +32,7 @@ def _load_dotenv() -> None:
         key, _, value = stripped.partition("=")
         key = key.strip()
         if key.startswith("export "):
-            key = key[len("export "):].strip()
+            key = key[len("export ") :].strip()
         if not key or key in os.environ:
             continue
         value = value.strip().strip('"').strip("'")
@@ -80,9 +80,7 @@ class Settings:
     # sqlite（默认）在索引期预计算并缓存 embedding，检索时只读缓存，避免每次全量重算；
     # none 保留原有“每次查询即时计算”行为；chroma 使用本地 Chroma 持久化。
     rag_vector_store: str = os.getenv("RAG_VECTOR_STORE", "sqlite")
-    rag_chroma_persist_directory: str = os.getenv(
-        "RAG_CHROMA_PERSIST_DIRECTORY", "data/chroma"
-    )
+    rag_chroma_persist_directory: str = os.getenv("RAG_CHROMA_PERSIST_DIRECTORY", "data/chroma")
     # Multi-step Agent is opt-in; the existing single-step route remains the default.
     agent_multi_step_enabled: bool = (
         os.getenv("AGENT_MULTI_STEP_ENABLED", "false").lower() == "true"

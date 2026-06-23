@@ -1,7 +1,6 @@
 import logging
 
-from fastapi import APIRouter, BackgroundTasks
-from fastapi import Request
+from fastapi import APIRouter, BackgroundTasks, Request
 
 from app.services.feishu_service import FeishuService
 

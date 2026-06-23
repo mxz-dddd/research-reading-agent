@@ -1,10 +1,3 @@
-import sys
-from pathlib import Path
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
 from app.services.rag_quality_eval_service import GoldenQuery, RagQualityEvalService
 
 
@@ -17,8 +10,7 @@ def _answer_response(answer: str, answer_mode: str, chunk_ids: list[str]) -> dic
         "answer": answer,
         "answer_mode": answer_mode,
         "evidence_chunks": [
-            {"chunk_id": chunk_id, "paper_id": "1", "content": "evidence"}
-            for chunk_id in chunk_ids
+            {"chunk_id": chunk_id, "paper_id": "1", "content": "evidence"} for chunk_id in chunk_ids
         ],
         "context_pack_id": "cp1",
         "pipeline": {"retrieval_mode": "hybrid"},
@@ -79,7 +71,9 @@ def test_summary_includes_citation_metrics() -> None:
         "context_pack_id": "cp1",
         "pipeline": {},
     }
-    result = service.evaluate_search_response(golden, search_response, retrieval_mode="hybrid", top_k=5)
+    result = service.evaluate_search_response(
+        golden, search_response, retrieval_mode="hybrid", top_k=5
+    )
     service.evaluate_answer_response(
         golden,
         _answer_response("方法 [chunk:c1]。", "llm", ["c1"]),

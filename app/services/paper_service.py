@@ -3,8 +3,6 @@ import re
 import ssl
 from datetime import date
 from typing import Any
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
 
 import certifi
 from fastapi import HTTPException
@@ -132,6 +130,7 @@ class PaperService:
         return self.paper_repo.update_status(paper_id=paper_id, status="saved")
 
     def accept_paper(self, payload: PaperAcceptRequest) -> PaperRead:
+        paper: PaperRead | None
         if payload.paper_id is not None:
             paper = self.paper_repo.get(payload.paper_id)
         else:
@@ -153,7 +152,9 @@ class PaperService:
     def ingest_paper(self, payload: PaperIngestRequest) -> PaperRead:
         paper = self.paper_repo.get(payload.paper_id)
         if not paper.is_accepted:
-            paper = self.paper_repo.accept(paper_id=paper.id, pdf_url=self._guess_pdf_url(paper.url))
+            paper = self.paper_repo.accept(
+                paper_id=paper.id, pdf_url=self._guess_pdf_url(paper.url)
+            )
 
         base_name = self.archive_service.make_base_name(paper.id, paper.title)
         pdf_url = paper.pdf_url or self._guess_pdf_url(paper.url)
@@ -403,9 +404,16 @@ Return JSON only, with these fields:
     def _strip_search_constraints(self, text: str) -> str:
         cleaned = re.sub(r"(?:近|最近)\s*[一二两三四五六七八九十\d]+\s*年", " ", text)
         cleaned = re.sub(r"(?:19|20)\d{2}\s*年?\s*以来", " ", cleaned)
-        cleaned = re.sub(r"(?:19|20)\d{2}\s*年?\s*(?:到|至|-|~)\s*(?:19|20)\d{2}\s*年?", " ", cleaned)
+        cleaned = re.sub(
+            r"(?:19|20)\d{2}\s*年?\s*(?:到|至|-|~)\s*(?:19|20)\d{2}\s*年?", " ", cleaned
+        )
         cleaned = re.sub(r"\d+\s*篇", " ", cleaned)
-        cleaned = re.sub(r"(帮我|请|搜索|查找|找|论文|paper|papers|search|给我|几篇|相关的|相关|要|的)", " ", cleaned, flags=re.I)
+        cleaned = re.sub(
+            r"(帮我|请|搜索|查找|找|论文|paper|papers|search|给我|几篇|相关的|相关|要|的)",
+            " ",
+            cleaned,
+            flags=re.I,
+        )
         cleaned = re.sub(r"[，,。.!！?？]", " ", cleaned)
         return " ".join(cleaned.split())
 
@@ -526,6 +534,7 @@ The Markdown must include these sections:
         except (LLMClientError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
             print(f"paper summary LLM fallback: {type(exc).__name__}: {exc}")
             return None
+
     def _rule_based_deep_summary(self, paper: PaperRead, text: str, mode: str) -> str:
         preview = text[:900] + ("..." if len(text) > 900 else "")
         return f"""# {paper.title}
@@ -565,4 +574,3 @@ The Markdown must include these sections:
         if extract_error:
             notes.append(f"- 文本提取提示：{extract_error}")
         return "\n".join(notes) + "\n"
-

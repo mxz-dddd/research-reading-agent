@@ -1,4 +1,6 @@
-from datetime import datetime, timezone
+from __future__ import annotations
+
+from datetime import UTC, datetime
 from sqlite3 import Row
 
 from fastapi import HTTPException
@@ -8,7 +10,7 @@ from app.schemas.knowledge import KnowledgeArtifactCreate, KnowledgeArtifactRead
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _row_to_artifact(row: Row) -> KnowledgeArtifactRead:

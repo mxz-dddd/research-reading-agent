@@ -1,6 +1,5 @@
 import re
 
-
 SECTION_RE = re.compile(
     r"^\s*((\d+(\.\d+)*)\s+)?(abstract|introduction|background|method|methods|methodology|experiment|experiments|results|discussion|conclusion|references)\b.*$",
     re.IGNORECASE,
@@ -38,8 +37,22 @@ class ContextualChunker:
             maybe_section = self._section_title(paragraph)
             if maybe_section:
                 current_section = maybe_section
-            if current_parts and sum(len(part) for part in current_parts) + len(paragraph) + 2 > chunk_size:
-                chunks.append(self._build_chunk(current_parts, paper_title, source_type, source_path, len(chunks), current_section or section_title, chunker_version, index_version))
+            if (
+                current_parts
+                and sum(len(part) for part in current_parts) + len(paragraph) + 2 > chunk_size
+            ):
+                chunks.append(
+                    self._build_chunk(
+                        current_parts,
+                        paper_title,
+                        source_type,
+                        source_path,
+                        len(chunks),
+                        current_section or section_title,
+                        chunker_version,
+                        index_version,
+                    )
+                )
                 overlap_text = self._overlap_text("\n\n".join(current_parts), chunk_overlap)
                 current_parts = [overlap_text] if overlap_text else []
             if maybe_section:
@@ -47,7 +60,18 @@ class ContextualChunker:
             current_parts.append(paragraph)
 
         if current_parts:
-            chunks.append(self._build_chunk(current_parts, paper_title, source_type, source_path, len(chunks), current_section or section_title, chunker_version, index_version))
+            chunks.append(
+                self._build_chunk(
+                    current_parts,
+                    paper_title,
+                    source_type,
+                    source_path,
+                    len(chunks),
+                    current_section or section_title,
+                    chunker_version,
+                    index_version,
+                )
+            )
         return chunks
 
     def _build_chunk(
@@ -92,7 +116,9 @@ class ContextualChunker:
             return ""
         return text[-chunk_overlap:].strip()
 
-    def _split_long_paragraph(self, paragraph: str, chunk_size: int, chunk_overlap: int) -> list[str]:
+    def _split_long_paragraph(
+        self, paragraph: str, chunk_size: int, chunk_overlap: int
+    ) -> list[str]:
         safe_overlap = min(chunk_overlap, max(chunk_size - 1, 0))
         step = max(1, chunk_size - safe_overlap)
         parts: list[str] = []

@@ -1,13 +1,7 @@
-import sys
-from pathlib import Path
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.api import routes_rag
 from app.main import app
@@ -16,12 +10,16 @@ from app.schemas.rag import RagAnswerResponse, RagIndexResponse, RagSearchChunk,
 
 def test_rag_index_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_index(**kwargs: Any) -> RagIndexResponse:
-        return RagIndexResponse(success=True, paper_id=kwargs["paper_id"], chunk_count=2, warnings=[], error=None)
+        return RagIndexResponse(
+            success=True, paper_id=kwargs["paper_id"], chunk_count=2, warnings=[], error=None
+        )
 
     monkeypatch.setattr(routes_rag.rag_service, "index_paper_for_rag", fake_index)
     client = TestClient(app)
 
-    response = client.post("/api/rag/index", json={"paper_id": "12", "chunk_size": 800, "chunk_overlap": 120})
+    response = client.post(
+        "/api/rag/index", json={"paper_id": "12", "chunk_size": 800, "chunk_overlap": 120}
+    )
 
     assert response.status_code == 200
     data = response.json()
@@ -54,7 +52,9 @@ def test_rag_search_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(routes_rag.rag_service, "search_rag", fake_search)
     client = TestClient(app)
 
-    response = client.post("/api/rag/search", json={"query": "propagation error", "top_k": 5, "paper_id": "12"})
+    response = client.post(
+        "/api/rag/search", json={"query": "propagation error", "top_k": 5, "paper_id": "12"}
+    )
 
     assert response.status_code == 200
     data = response.json()

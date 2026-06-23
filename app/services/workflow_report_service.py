@@ -1,6 +1,6 @@
-from pathlib import Path
 import json
 import re
+from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException
@@ -8,8 +8,9 @@ from fastapi import HTTPException
 from app.repositories.workflow_repo import WorkflowRunRepository
 from app.schemas.workflow import WorkflowReportResponse, WorkflowRunDetail
 
-
-DRY_RUN_REPORT_WARNING = "当前报告基于 dry_run 模式生成，仅用于演示流程结构，不代表真实论文检索或真实模型生成结果。"
+DRY_RUN_REPORT_WARNING = (
+    "当前报告基于 dry_run 模式生成，仅用于演示流程结构，不代表真实论文检索或真实模型生成结果。"
+)
 
 
 class WorkflowReportService:
@@ -88,8 +89,14 @@ class WorkflowReportService:
         lines.extend(self._render_steps(result.get("steps") or []))
         lines.extend(self._render_papers("## 3. 搜索论文概览", result.get("searched_papers") or []))
         lines.extend(self._render_papers("## 4. 已接收论文", result.get("accepted_papers") or []))
-        lines.extend(self._render_papers("## 5. 深入阅读 / Ingest 结果", result.get("ingested_papers") or []))
-        lines.extend(self._render_rag_indexing(result.get("rag_indexed_papers"), result.get("steps") or [], dry_run))
+        lines.extend(
+            self._render_papers("## 5. 深入阅读 / Ingest 结果", result.get("ingested_papers") or [])
+        )
+        lines.extend(
+            self._render_rag_indexing(
+                result.get("rag_indexed_papers"), result.get("steps") or [], dry_run
+            )
+        )
         lines.extend(self._render_knowledge(result.get("knowledge")))
         lines.extend(self._render_innovation(result.get("innovation")))
         lines.extend(self._render_warnings(warnings, error, dry_run))
@@ -149,8 +156,20 @@ class WorkflowReportService:
         lines = ["", "## 6. 知识树结果", ""]
         if not knowledge:
             return lines + ["当前 workflow 结果中未包含该字段。", ""]
-        for key in ["knowledge_tree_markdown", "learning_roadmap_markdown", "mermaid_mindmap", "mermaid_flowchart"]:
-            lines.extend([f"### {key}", "", str(knowledge.get(key) or "当前 workflow 结果中未包含该字段。"), ""])
+        for key in [
+            "knowledge_tree_markdown",
+            "learning_roadmap_markdown",
+            "mermaid_mindmap",
+            "mermaid_flowchart",
+        ]:
+            lines.extend(
+                [
+                    f"### {key}",
+                    "",
+                    str(knowledge.get(key) or "当前 workflow 结果中未包含该字段。"),
+                    "",
+                ]
+            )
         return lines
 
     def _render_rag_indexing(
@@ -175,7 +194,13 @@ class WorkflowReportService:
             lines.extend(["", "当前 workflow 结果中未包含 RAG 索引信息。", ""])
             return lines
 
-        lines.extend(["", "| Paper ID | Success | Chunk Count | Warnings | Error |", "| --- | --- | --- | --- | --- |"])
+        lines.extend(
+            [
+                "",
+                "| Paper ID | Success | Chunk Count | Warnings | Error |",
+                "| --- | --- | --- | --- | --- |",
+            ]
+        )
         for item in rag_indexed_papers:
             warnings = "; ".join(str(warning) for warning in item.get("warnings") or [])
             lines.append(
@@ -194,9 +219,32 @@ class WorkflowReportService:
         lines = ["", "## 7. 创新点结果", ""]
         if not innovation:
             return lines + ["当前 workflow 结果中未包含该字段。", ""]
-        lines.extend(["### innovation_markdown", "", str(innovation.get("innovation_markdown") or "当前 workflow 结果中未包含该字段。"), ""])
-        lines.extend(["### innovation_json", "", "```json", json.dumps(innovation.get("innovation_json") or {}, ensure_ascii=False, indent=2), "```", ""])
-        lines.extend(["### summary_markdown", "", str(innovation.get("summary_markdown") or "当前 workflow 结果中未包含该字段。"), ""])
+        lines.extend(
+            [
+                "### innovation_markdown",
+                "",
+                str(innovation.get("innovation_markdown") or "当前 workflow 结果中未包含该字段。"),
+                "",
+            ]
+        )
+        lines.extend(
+            [
+                "### innovation_json",
+                "",
+                "```json",
+                json.dumps(innovation.get("innovation_json") or {}, ensure_ascii=False, indent=2),
+                "```",
+                "",
+            ]
+        )
+        lines.extend(
+            [
+                "### summary_markdown",
+                "",
+                str(innovation.get("summary_markdown") or "当前 workflow 结果中未包含该字段。"),
+                "",
+            ]
+        )
         return lines
 
     def _render_warnings(self, warnings: list[str], error: str | None, dry_run: bool) -> list[str]:

@@ -1,12 +1,12 @@
-from datetime import datetime, timezone
 import json
+from datetime import UTC, datetime
 from typing import Any
 
 from app.core.database import get_connection
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 class SessionStateRepository:

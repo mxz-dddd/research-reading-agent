@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from sqlite3 import Row
 from typing import Any
 
@@ -8,7 +8,7 @@ from app.schemas.conversation import ConversationState, ConversationTurn
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _row_to_state(row: Row) -> ConversationState:

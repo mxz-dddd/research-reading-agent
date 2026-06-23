@@ -1,11 +1,4 @@
-import sys
-from pathlib import Path
-
 import pytest
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.agent.orchestrator import AgentOrchestrator
 
@@ -21,7 +14,11 @@ def fallback_router() -> AgentOrchestrator:
     ("message", "expected_intent", "expected_tool"),
     [
         ("你现在支持哪些能力", "help", "help"),
-        ("搜索 large language model medical imaging 论文，给我 2 篇", "search_papers", "search_papers"),
+        (
+            "搜索 large language model medical imaging 论文，给我 2 篇",
+            "search_papers",
+            "search_papers",
+        ),
         ("接收第 2 篇论文", "accept_paper", "accept_paper"),
         ("对第 3 篇做深入阅读", "ingest_paper", "ingest_paper"),
         ("当前有哪些已接收论文", "list_accepted_papers", "list_accepted_papers"),

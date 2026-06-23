@@ -1,6 +1,6 @@
-from datetime import datetime, timezone
 import json
 import re
+from datetime import UTC, datetime
 from sqlite3 import Row
 
 from app.core.database import get_connection
@@ -8,7 +8,7 @@ from app.schemas.rag import RagChunkCreate, RagChunkRead, RagSearchChunk
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _row_to_chunk(row: Row) -> RagChunkRead:
@@ -19,9 +19,7 @@ def _row_to_chunk(row: Row) -> RagChunkRead:
 
 def _tokens(text: str) -> set[str]:
     return {
-        token.lower()
-        for token in re.findall(r"[a-zA-Z0-9_\u4e00-\u9fff]+", text)
-        if token.strip()
+        token.lower() for token in re.findall(r"[a-zA-Z0-9_\u4e00-\u9fff]+", text) if token.strip()
     }
 
 
@@ -62,7 +60,9 @@ class RagChunkRepository:
                 ),
             )
             conn.commit()
-            row = conn.execute("SELECT * FROM rag_chunks WHERE id = ?", (cursor.lastrowid,)).fetchone()
+            row = conn.execute(
+                "SELECT * FROM rag_chunks WHERE id = ?", (cursor.lastrowid,)
+            ).fetchone()
         return _row_to_chunk(row)
 
     def delete_chunks_by_paper_id(self, paper_id: str) -> int:

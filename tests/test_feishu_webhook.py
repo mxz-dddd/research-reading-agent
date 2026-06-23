@@ -1,10 +1,12 @@
+import base64
+import hashlib
+import hmac
 import json
 import logging
 from types import SimpleNamespace
 
-from fastapi import BackgroundTasks
-from fastapi import HTTPException
 import pytest
+from fastapi import BackgroundTasks, HTTPException
 
 import app.core.database as database
 from app.core.database import init_db
@@ -137,12 +139,110 @@ def test_feishu_invalid_json_returns_400() -> None:
     assert exc_info.value.status_code == 400
 
 
+def test_feishu_valid_signature_passes(monkeypatch) -> None:
+    encrypt_key = "test-encrypt-key"
+    timestamp = "1710000000"
+    nonce = "nonce-1"
+    raw_body = _payload(event_id="evt_signed", message_id="msg_signed")
+    signature = hashlib.sha256(f"{timestamp}{nonce}{encrypt_key}".encode() + raw_body).hexdigest()
+    monkeypatch.setattr(
+        "app.services.feishu_service.settings",
+        _settings(feishu_enable_signature_check=True, feishu_encrypt_key=encrypt_key),
+    )
+    service = FeishuService()
+    monkeypatch.setattr(service, "_process_message_event", lambda *args, **kwargs: None)
+
+    result = service.handle_webhook(
+        raw_body=raw_body,
+        headers={
+            "x-lark-request-timestamp": timestamp,
+            "x-lark-request-nonce": nonce,
+            "x-lark-signature": signature,
+        },
+    )
+
+    assert result["event_id"] == "evt_signed"
+
+
+@pytest.mark.parametrize("signature", ["wrong-signature", ""])
+def test_feishu_invalid_or_missing_signature_is_rejected(monkeypatch, signature: str) -> None:
+    monkeypatch.setattr(
+        "app.services.feishu_service.settings",
+        _settings(feishu_enable_signature_check=True, feishu_encrypt_key="test-encrypt-key"),
+    )
+    headers = {
+        "x-lark-request-timestamp": "1710000000",
+        "x-lark-request-nonce": "nonce-1",
+    }
+    if signature:
+        headers["x-lark-signature"] = signature
+
+    with pytest.raises(HTTPException) as exc_info:
+        FeishuService().handle_webhook(raw_body=_payload(), headers=headers)
+
+    assert exc_info.value.status_code == 401
+
+
+def test_feishu_legacy_hmac_base64_signature_is_rejected(monkeypatch) -> None:
+    encrypt_key = "test-encrypt-key"
+    timestamp = "1710000000"
+    nonce = "nonce-1"
+    raw_body = _payload()
+    signed_content = f"{timestamp}{nonce}{encrypt_key}".encode() + raw_body
+    legacy_signature = base64.b64encode(
+        hmac.new(encrypt_key.encode("utf-8"), signed_content, hashlib.sha256).digest()
+    ).decode("utf-8")
+    monkeypatch.setattr(
+        "app.services.feishu_service.settings",
+        _settings(feishu_enable_signature_check=True, feishu_encrypt_key=encrypt_key),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        FeishuService().handle_webhook(
+            raw_body=raw_body,
+            headers={
+                "x-lark-request-timestamp": timestamp,
+                "x-lark-request-nonce": nonce,
+                "x-lark-signature": legacy_signature,
+            },
+        )
+
+    assert exc_info.value.status_code == 401
+
+
+def test_feishu_signature_check_disabled_accepts_unsigned_event(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.services.feishu_service.settings",
+        _settings(feishu_enable_signature_check=False),
+    )
+    service = FeishuService()
+    monkeypatch.setattr(service, "_process_message_event", lambda *args, **kwargs: None)
+
+    result = service.handle_webhook(raw_body=_payload(), headers={})
+
+    assert result["event_id"] == "evt_1"
+
+
+def test_feishu_signature_check_requires_encrypt_key(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.services.feishu_service.settings",
+        _settings(feishu_enable_signature_check=True, feishu_encrypt_key=None),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        FeishuService().handle_webhook(raw_body=_payload(), headers={})
+
+    assert exc_info.value.status_code == 500
+
+
 def test_feishu_non_text_message_replies_without_agent(monkeypatch) -> None:
     service = FeishuService()
     replies: list[tuple[str | None, str]] = []
     agent_calls: list[str] = []
 
-    monkeypatch.setattr(service.agent_service, "query", lambda request: agent_calls.append(request.text))
+    monkeypatch.setattr(
+        service.agent_service, "query", lambda request: agent_calls.append(request.text)
+    )
     monkeypatch.setattr(
         service,
         "_reply_to_feishu",
@@ -180,7 +280,9 @@ def test_feishu_text_event_is_queued_and_deduped(monkeypatch) -> None:
 
     background = BackgroundTasks()
     first = service.handle_webhook(raw_body=_payload(), headers={}, background_tasks=background)
-    second = service.handle_webhook(raw_body=_payload(), headers={}, background_tasks=BackgroundTasks())
+    second = service.handle_webhook(
+        raw_body=_payload(), headers={}, background_tasks=BackgroundTasks()
+    )
 
     assert first["message"] == "飞书事件已接收，后台处理中"
     assert second["message"] == "duplicate event ignored"
@@ -207,13 +309,15 @@ def test_feishu_duplicate_message_id_without_event_id_is_not_processed_twice(mon
     monkeypatch.setattr(
         service.agent_service,
         "query",
-        lambda request: calls.append(request.text)
-        or SimpleNamespace(
-            model_dump=lambda: {
-                "final_answer": "ok",
-                "chosen_tool": "get_latest_workflow",
-                "routing_method": "fallback",
-            }
+        lambda request: (
+            calls.append(request.text)
+            or SimpleNamespace(
+                model_dump=lambda: {
+                    "final_answer": "ok",
+                    "chosen_tool": "get_latest_workflow",
+                    "routing_method": "fallback",
+                }
+            )
         ),
     )
     monkeypatch.setattr(
@@ -246,7 +350,6 @@ def test_feishu_background_task_exception_is_logged(monkeypatch, caplog) -> None
     assert "msg_fail" in caplog.text
 
 
-
 def test_feishu_logs_background_agent_and_reply_without_message_text(monkeypatch, caplog) -> None:
     service = FeishuService()
     replies: list[tuple[str | None, str]] = []
@@ -271,7 +374,11 @@ def test_feishu_logs_background_agent_and_reply_without_message_text(monkeypatch
 
     background = BackgroundTasks()
     with caplog.at_level(logging.INFO):
-        result = service.handle_webhook(raw_body=_payload(event_id="evt_log", message_id="msg_log"), headers={}, background_tasks=background)
+        result = service.handle_webhook(
+            raw_body=_payload(event_id="evt_log", message_id="msg_log"),
+            headers={},
+            background_tasks=background,
+        )
         task = background.tasks[0]
         task.func(*task.args, **task.kwargs)
 
@@ -300,7 +407,9 @@ def test_feishu_logs_ignored_event_type(caplog) -> None:
     ).encode("utf-8")
 
     with caplog.at_level(logging.INFO):
-        result = service.handle_webhook(raw_body=raw, headers={}, background_tasks=BackgroundTasks())
+        result = service.handle_webhook(
+            raw_body=raw, headers={}, background_tasks=BackgroundTasks()
+        )
 
     assert result["event_type"] == "app.ticket.v1"
     assert "ignored_event_type" in caplog.text
@@ -346,16 +455,30 @@ def test_feishu_reply_http_failure_logs_status_code_and_feishu_error(monkeypatch
 def test_feishu_session_id_is_isolated_by_chat_user_and_thread() -> None:
     service = FeishuService()
 
-    assert service._conversation_session_id({"chat_id": "c1", "open_id": "u1", "chat_type": "p2p"}) == "feishu:p2p:c1"
-    assert service._conversation_session_id({"chat_id": "c1", "open_id": "u1", "chat_type": "group"}) == "feishu:group:c1:u1"
-    assert service._conversation_session_id({"chat_id": "c1", "open_id": "u2", "chat_type": "group"}) == "feishu:group:c1:u2"
-    assert service._conversation_session_id(
-        {"chat_id": "c1", "open_id": "u1", "chat_type": "group", "root_id": "r1"}
-    ) == "feishu:group:c1:r1:u1"
+    assert (
+        service._conversation_session_id({"chat_id": "c1", "open_id": "u1", "chat_type": "p2p"})
+        == "feishu:p2p:c1"
+    )
+    assert (
+        service._conversation_session_id({"chat_id": "c1", "open_id": "u1", "chat_type": "group"})
+        == "feishu:group:c1:u1"
+    )
+    assert (
+        service._conversation_session_id({"chat_id": "c1", "open_id": "u2", "chat_type": "group"})
+        == "feishu:group:c1:u2"
+    )
+    assert (
+        service._conversation_session_id(
+            {"chat_id": "c1", "open_id": "u1", "chat_type": "group", "root_id": "r1"}
+        )
+        == "feishu:group:c1:r1:u1"
+    )
 
 
 def test_feishu_followup_time_range_reuses_previous_search(monkeypatch, tmp_path) -> None:
-    monkeypatch.setattr(database, "settings", SimpleNamespace(database_path=str(tmp_path / "feishu_context.db")))
+    monkeypatch.setattr(
+        database, "settings", SimpleNamespace(database_path=str(tmp_path / "feishu_context.db"))
+    )
     init_db()
     service = FeishuService()
     replies: list[str] = []
@@ -381,7 +504,9 @@ def test_feishu_followup_time_range_reuses_previous_search(monkeypatch, tmp_path
             routing_method="fallback",
         )
 
-    def fake_query_with_route(request, *, tool_name, arguments, intent=None, routing_method="context"):
+    def fake_query_with_route(
+        request, *, tool_name, arguments, intent=None, routing_method="context"
+    ):
         captured_followup.update(arguments)
         return AgentQueryResponse(
             success=True,
@@ -404,7 +529,9 @@ def test_feishu_followup_time_range_reuses_previous_search(monkeypatch, tmp_path
     )
 
     first = service.handle_webhook(
-        raw_body=_text_payload("帮我搜索5篇VLF传播时延相关论文", event_id="evt_ctx_1", message_id="msg_ctx_1"),
+        raw_body=_text_payload(
+            "帮我搜索5篇VLF传播时延相关论文", event_id="evt_ctx_1", message_id="msg_ctx_1"
+        ),
         headers={},
     )
     second = service.handle_webhook(
@@ -423,8 +550,12 @@ def test_feishu_followup_time_range_reuses_previous_search(monkeypatch, tmp_path
     assert "routing_method" not in replies[-1]
 
 
-def test_feishu_append_search_excludes_previous_and_keeps_global_ordinals(monkeypatch, tmp_path) -> None:
-    monkeypatch.setattr(database, "settings", SimpleNamespace(database_path=str(tmp_path / "feishu_append.db")))
+def test_feishu_append_search_excludes_previous_and_keeps_global_ordinals(
+    monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setattr(
+        database, "settings", SimpleNamespace(database_path=str(tmp_path / "feishu_append.db"))
+    )
     init_db()
     service = FeishuService()
     routed_calls: list[tuple[str, dict[str, object]]] = []
@@ -443,17 +574,27 @@ def test_feishu_append_search_excludes_previous_and_keeps_global_ordinals(monkey
             success=True,
             intent="search_papers",
             chosen_tool="search_papers",
-            tool_calls=[AgentToolCall(tool_name="search_papers", arguments={"topic": "VLF传播时延", "max_results": 5}, success=True)],
+            tool_calls=[
+                AgentToolCall(
+                    tool_name="search_papers",
+                    arguments={"topic": "VLF传播时延", "max_results": 5},
+                    success=True,
+                )
+            ],
             final_answer="first",
             data=first_batch,
             routing_method="fallback",
         )
 
-    def fake_query_with_route(request, *, tool_name, arguments, intent=None, routing_method="context"):
+    def fake_query_with_route(
+        request, *, tool_name, arguments, intent=None, routing_method="context"
+    ):
         routed_calls.append((tool_name, dict(arguments)))
         if tool_name == "search_papers":
             data = second_batch
-            answer = "继续为你补充 5 篇：\n6. Paper 6\n7. Paper 7\n8. Paper 8\n9. Paper 9\n10. Paper 10"
+            answer = (
+                "继续为你补充 5 篇：\n6. Paper 6\n7. Paper 7\n8. Paper 8\n9. Paper 9\n10. Paper 10"
+            )
         else:
             paper_id = int(arguments["paper_id"])
             data = {"id": paper_id, "title": f"Paper {paper_id - 100}"}
@@ -472,31 +613,50 @@ def test_feishu_append_search_excludes_previous_and_keeps_global_ordinals(monkey
     monkeypatch.setattr(service.agent_service, "query_with_route", fake_query_with_route)
     monkeypatch.setattr(service, "_reply_to_feishu", lambda *args, **kwargs: {"success": True})
 
-    service.handle_webhook(raw_body=_text_payload("帮我搜索5篇VLF传播时延相关论文", event_id="evt_a1", message_id="msg_a1"), headers={})
-    service.handle_webhook(raw_body=_text_payload("再来5篇", event_id="evt_a2", message_id="msg_a2"), headers={})
+    service.handle_webhook(
+        raw_body=_text_payload(
+            "帮我搜索5篇VLF传播时延相关论文", event_id="evt_a1", message_id="msg_a1"
+        ),
+        headers={},
+    )
+    service.handle_webhook(
+        raw_body=_text_payload("再来5篇", event_id="evt_a2", message_id="msg_a2"), headers={}
+    )
 
     search_args = routed_calls[0][1]
     assert search_args["topic"] == "VLF传播时延"
     assert search_args["max_results"] == 5
     assert search_args["append_mode"] is True
     assert search_args["exclude_paper_ids"] == [101, 102, 103, 104, 105]
-    assert search_args["exclude_urls"] == [f"https://arxiv.org/abs/{index}" for index in range(1, 6)]
+    assert search_args["exclude_urls"] == [
+        f"https://arxiv.org/abs/{index}" for index in range(1, 6)
+    ]
 
-    session_id = service._conversation_session_id({"chat_id": "oc_1", "open_id": "ou_1", "chat_type": "group"})
+    session_id = service._conversation_session_id(
+        {"chat_id": "oc_1", "open_id": "ou_1", "chat_type": "group"}
+    )
     state = service.context_service.get_state(session_id)
     assert state is not None
     assert len(state.last_result_refs) == 10
     assert state.last_result_refs[6]["paper_id"] == 107
 
-    service.handle_webhook(raw_body=_text_payload("第7篇", event_id="evt_a3", message_id="msg_a3"), headers={})
-    service.handle_webhook(raw_body=_text_payload("接收第8篇", event_id="evt_a4", message_id="msg_a4"), headers={})
+    service.handle_webhook(
+        raw_body=_text_payload("第7篇", event_id="evt_a3", message_id="msg_a3"), headers={}
+    )
+    service.handle_webhook(
+        raw_body=_text_payload("接收第8篇", event_id="evt_a4", message_id="msg_a4"), headers={}
+    )
 
     assert routed_calls[1] == ("get_paper_detail", {"paper_id": 107})
     assert routed_calls[2] == ("accept_paper", {"paper_id": 108})
 
 
-def test_feishu_batch_ingest_uses_previous_five_and_hides_internal_names(monkeypatch, tmp_path) -> None:
-    monkeypatch.setattr(database, "settings", SimpleNamespace(database_path=str(tmp_path / "feishu_batch.db")))
+def test_feishu_batch_ingest_uses_previous_five_and_hides_internal_names(
+    monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setattr(
+        database, "settings", SimpleNamespace(database_path=str(tmp_path / "feishu_batch.db"))
+    )
     init_db()
     service = FeishuService()
     replies: list[str] = []
@@ -513,7 +673,13 @@ def test_feishu_batch_ingest_uses_previous_five_and_hides_internal_names(monkeyp
             success=True,
             intent="search_papers",
             chosen_tool="search_papers",
-            tool_calls=[AgentToolCall(tool_name="search_papers", arguments={"topic": "VLF", "max_results": 5}, success=True)],
+            tool_calls=[
+                AgentToolCall(
+                    tool_name="search_papers",
+                    arguments={"topic": "VLF", "max_results": 5},
+                    success=True,
+                )
+            ],
             final_answer="found",
             data=papers,
         ),
@@ -532,7 +698,12 @@ def test_feishu_batch_ingest_uses_previous_five_and_hides_internal_names(monkeyp
                 "succeeded": 5,
                 "failed": 0,
                 "items": [
-                    {"position": index, "paper_id": 100 + index, "title": f"Paper {index}", "status": "success"}
+                    {
+                        "position": index,
+                        "paper_id": 100 + index,
+                        "title": f"Paper {index}",
+                        "status": "success",
+                    }
                     for index in range(1, 6)
                 ],
             },
@@ -560,12 +731,19 @@ def test_feishu_batch_ingest_uses_previous_five_and_hides_internal_names(monkeyp
         "paper_ids": [101, 102, 103, 104, 105],
         "source_positions": [1, 2, 3, 4, 5],
     }
-    for internal in ("batch_ingest_papers", "ingest_paper", "read_papers", "paper_ids", "routing_method", "chosen_tool"):
+    for internal in (
+        "batch_ingest_papers",
+        "ingest_paper",
+        "read_papers",
+        "paper_ids",
+        "routing_method",
+        "chosen_tool",
+    ):
         assert internal not in replies[-1]
 
-    session_id = service._conversation_session_id({"chat_id": "oc_1", "open_id": "ou_1", "chat_type": "group"})
+    session_id = service._conversation_session_id(
+        {"chat_id": "oc_1", "open_id": "ou_1", "chat_type": "group"}
+    )
     state = service.context_service.get_state(session_id)
     assert state is not None
     assert len(state.last_result_refs) == 5
-
-

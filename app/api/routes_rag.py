@@ -5,10 +5,10 @@ from app.schemas.context import ContextPackRead
 from app.schemas.rag import (
     RagAnswerRequest,
     RagAnswerResponse,
+    RagEvaluationSummaryResponse,
     RagEvidenceEvaluationSummaryResponse,
     RagEvidenceFeedbackRequest,
     RagEvidenceFeedbackResponse,
-    RagEvaluationSummaryResponse,
     RagIndexRequest,
     RagIndexResponse,
     RagSearchRequest,
@@ -20,8 +20,8 @@ from app.schemas.rag import (
     RagTraceFeedbackResponse,
     RagTraceListResponse,
 )
-from app.services.rag_evaluation_service import RagEvaluationService
 from app.services.rag_eval_run_service import RagEvalRunService
+from app.services.rag_evaluation_service import RagEvaluationService
 from app.services.rag_service import RagService
 
 router = APIRouter(tags=["rag"])
@@ -105,7 +105,9 @@ def get_latest_rag_traces(limit: int = 10) -> RagTraceListResponse:
 
 @router.get("/traces/by-paper/{paper_id}", response_model=RagTraceListResponse)
 def get_rag_traces_by_paper(paper_id: str, limit: int = 10) -> RagTraceListResponse:
-    return RagTraceListResponse(success=True, items=rag_service.list_traces_by_paper(paper_id=paper_id, limit=limit))
+    return RagTraceListResponse(
+        success=True, items=rag_service.list_traces_by_paper(paper_id=paper_id, limit=limit)
+    )
 
 
 @router.post("/traces/{trace_id}/feedback", response_model=RagTraceFeedbackResponse)
@@ -148,7 +150,9 @@ def get_rag_evidence_evaluation_summary(trace_id: str | None = None) -> dict:
     return rag_evaluation_service.get_evidence_evaluation_summary(trace_id=trace_id)
 
 
-@router.get("/evaluation/traces/{trace_id}/evidence", response_model=RagTraceEvidenceEvaluationResponse)
+@router.get(
+    "/evaluation/traces/{trace_id}/evidence", response_model=RagTraceEvidenceEvaluationResponse
+)
 def get_rag_trace_evidence_evaluation(trace_id: str) -> dict:
     return rag_evaluation_service.get_trace_evidence_evaluation(trace_id)
 

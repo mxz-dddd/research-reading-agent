@@ -1,13 +1,10 @@
 import json
 import ssl
 from typing import Any
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
 
 import certifi
 from fastapi import HTTPException
 
-from app.core.config import settings
 from app.core.llm_client import LLMClientError, OpenAICompatibleClient
 from app.repositories.innovation_repo import InnovationRepository
 from app.repositories.knowledge_repo import KnowledgeRepository
@@ -236,11 +233,7 @@ Archived paper materials:
         data: dict[str, Any],
         paper_count: int,
     ) -> dict[str, Any]:
-        raw_ideas = (
-            data.get("innovation_ideas")
-            or data.get("innovation_points")
-            or []
-        )
+        raw_ideas = data.get("innovation_ideas") or data.get("innovation_points") or []
 
         normalized_ideas = []
         if isinstance(raw_ideas, list):
@@ -260,8 +253,7 @@ Archived paper materials:
                         normalized_item = dict(evidence)
                         normalized_item["paper_id"] = evidence.get("paper_id", "?")
                         normalized_item["title"] = (
-                            evidence.get("title")
-                            or "\u672a\u6307\u5b9a\u8bba\u6587"
+                            evidence.get("title") or "\u672a\u6307\u5b9a\u8bba\u6587"
                         )
                         normalized_item["evidence"] = str(
                             evidence.get("evidence")
@@ -286,10 +278,7 @@ Archived paper materials:
                     continue
 
                 finding_text = str(
-                    item.get("finding")
-                    or item.get("statement")
-                    or item.get("description")
-                    or ""
+                    item.get("finding") or item.get("statement") or item.get("description") or ""
                 ).strip()
 
                 paper_id = item.get("paper_id")
@@ -321,8 +310,7 @@ Archived paper materials:
                         combined_text = finding_text
                         if evidence_text:
                             combined_text = (
-                                f"{combined_text} "
-                                f"\u8bc1\u636e\uff1a{evidence_text}"
+                                f"{combined_text} \u8bc1\u636e\uff1a{evidence_text}"
                                 if combined_text
                                 else evidence_text
                             )
@@ -331,8 +319,7 @@ Archived paper materials:
                             {
                                 "paper_id": evidence.get("paper_id", "?"),
                                 "title": (
-                                    evidence.get("title")
-                                    or "\u672a\u6307\u5b9a\u8bba\u6587"
+                                    evidence.get("title") or "\u672a\u6307\u5b9a\u8bba\u6587"
                                 ),
                                 "finding": combined_text or "\u6682\u65e0\u76f4\u63a5\u5f52\u7eb3",
                             }
@@ -358,11 +345,7 @@ Archived paper materials:
 
             for item in model_inference:
                 if isinstance(item, dict):
-                    statement = str(
-                        item.get("statement")
-                        or item.get("inference")
-                        or ""
-                    ).strip()
+                    statement = str(item.get("statement") or item.get("inference") or "").strip()
                     basis = str(item.get("basis") or "").strip()
 
                     if statement:
@@ -374,8 +357,7 @@ Archived paper materials:
                     inference_lines.append(f"- {item}")
 
             data["model_inference"] = (
-                "\n".join(inference_lines)
-                or "\u6682\u65e0\u6a21\u578b\u63a8\u65ad"
+                "\n".join(inference_lines) or "\u6682\u65e0\u6a21\u578b\u63a8\u65ad"
             )
 
         elif isinstance(model_inference, dict):
@@ -403,8 +385,9 @@ Archived paper materials:
         topic: str | None,
         data: dict[str, Any],
     ) -> str:
+        display_topic = topic or "\u5168\u90e8\u5df2\u63a5\u6536\u8bba\u6587"
         lines = [
-            f"# \u521b\u65b0\u70b9\u5206\u6790\uff1a{topic or '\u5168\u90e8\u5df2\u63a5\u6536\u8bba\u6587'}",
+            f"# \u521b\u65b0\u70b9\u5206\u6790\uff1a{display_topic}",
             "",
         ]
 
@@ -417,7 +400,9 @@ Archived paper materials:
                 ]
             )
 
-        lines.append("## \u8bba\u6587\u8bc1\u636e\uff1a\u6765\u81ea\u8bba\u6587\u5185\u5bb9\u7684\u76f4\u63a5\u5f52\u7eb3")
+        lines.append(
+            "## \u8bba\u6587\u8bc1\u636e\uff1a\u6765\u81ea\u8bba\u6587\u5185\u5bb9\u7684\u76f4\u63a5\u5f52\u7eb3"
+        )
 
         for finding in data.get("evidence_based_findings", []):
             paper_id = finding.get("paper_id")
@@ -427,9 +412,7 @@ Archived paper materials:
             if paper_id in {None, "", "?"}:
                 lines.append(f"- \u300a{title}\u300b\uff1a{finding_text}")
             else:
-                lines.append(
-                    f"- P{paper_id}\u300a{title}\u300b\uff1a{finding_text}"
-                )
+                lines.append(f"- P{paper_id}\u300a{title}\u300b\uff1a{finding_text}")
 
         lines.extend(
             [
@@ -459,6 +442,7 @@ Archived paper materials:
             )
 
             for evidence in idea.get("evidence_from_papers", []):
+                evidence_title = evidence.get("title") or "\u672a\u6307\u5b9a\u8bba\u6587"
                 evidence_text = (
                     evidence.get("evidence")
                     or evidence.get("basis")
@@ -468,7 +452,7 @@ Archived paper materials:
 
                 lines.append(
                     f"  - P{evidence.get('paper_id', '?')}"
-                    f"\u300a{evidence.get('title') or '\u672a\u6307\u5b9a\u8bba\u6587'}\u300b"
+                    f"\u300a{evidence_title}\u300b"
                     f"\uff1a{evidence_text}"
                 )
 
@@ -495,10 +479,10 @@ Archived paper materials:
         for idea in ideas[:3]:
             lines.append(f"- {idea.get('title')}（{idea.get('category')}）")
         lines.extend(["", "## 证据更强的方向"])
-        for idea in (strong or ideas[:2]):
+        for idea in strong or ideas[:2]:
             lines.append(f"- {idea.get('title')}：置信度 {idea.get('confidence_level')}")
         lines.extend(["", "## 更冒险的方向"])
-        for idea in (risky or ideas[-2:]):
+        for idea in risky or ideas[-2:]:
             lines.append(f"- {idea.get('title')}：风险 {idea.get('risk_level')}")
         if data.get("warning"):
             lines.extend(["", "## 覆盖提醒", f"- {data['warning']}"])
@@ -513,7 +497,7 @@ Archived paper materials:
         innovation_markdown: str,
         summary_markdown: str,
     ) -> str:
-        return f"""# 创新点归档：{topic or '全部已接收论文'}
+        return f"""# 创新点归档：{topic or "全部已接收论文"}
 
 - 来源论文数：{source_paper_count}
 - 生成方式：{generation_method}

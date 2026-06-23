@@ -1,12 +1,7 @@
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.core import database
 from app.schemas.paper import PaperRead
@@ -80,7 +75,10 @@ def test_rag_service_search_and_answer(
     rag_service: RagService,
 ) -> None:
     text_path = tmp_path / "paper.txt"
-    text_path.write_text("The main contribution is propagation error correction for timing systems.", encoding="utf-8")
+    text_path.write_text(
+        "The main contribution is propagation error correction for timing systems.",
+        encoding="utf-8",
+    )
     monkeypatch.setattr(rag_service.paper_repo, "get", lambda paper_id: fake_paper(str(text_path)))
     rag_service.index_paper_for_rag("12", chunk_size=200, chunk_overlap=20)
 
@@ -118,7 +116,9 @@ def test_rag_service_keyword_mode_still_works(
     rag_service: RagService,
 ) -> None:
     text_path = tmp_path / "paper.txt"
-    text_path.write_text("Keyword retrieval keeps propagation error matching available.", encoding="utf-8")
+    text_path.write_text(
+        "Keyword retrieval keeps propagation error matching available.", encoding="utf-8"
+    )
     monkeypatch.setattr(rag_service.paper_repo, "get", lambda paper_id: fake_paper(str(text_path)))
     rag_service.index_paper_for_rag("12", chunk_size=200, chunk_overlap=20)
 

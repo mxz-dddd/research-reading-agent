@@ -1,5 +1,5 @@
-from pathlib import Path
 import re
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -14,7 +14,6 @@ from app.rag.sqlite_vector_store import SqliteVectorStore, build_provider_key
 from app.repositories.paper_repo import PaperRepository
 from app.repositories.rag_repo import RagChunkRepository
 from app.repositories.rag_trace_repo import RagTraceRepository
-from app.services.context_service import ContextService
 from app.schemas.paper import PaperRead
 from app.schemas.rag import (
     RagAnswerResponse,
@@ -25,10 +24,12 @@ from app.schemas.rag import (
     RagTraceCreate,
     RagTraceRead,
 )
-
+from app.services.context_service import ContextService
 
 RAG_V1_WARNING = "RAG v1 基于本地关键词检索生成保守回答，不代表完整语义理解。"
-RAG_V2_WARNING = "RAG v2 使用 contextual chunk、hybrid retrieval、RRF fusion 和轻量 rerank 生成证据约束回答。"
+RAG_V2_WARNING = (
+    "RAG v2 使用 contextual chunk、hybrid retrieval、RRF fusion 和轻量 rerank 生成证据约束回答。"
+)
 
 
 class RagService:
@@ -99,9 +100,7 @@ class RagService:
                     index_version=chunk["index_version"],
                 )
             )
-            embed_items.append(
-                (chunk_id, chunk["content_for_embedding"] or chunk["content"])
-            )
+            embed_items.append((chunk_id, chunk["content_for_embedding"] or chunk["content"]))
 
         # 在索引期一次性预计算并缓存 embedding，检索时只读缓存，避免每次查询全量重算。
         precompute_warning = self._precompute_embeddings(embed_items)
@@ -352,9 +351,10 @@ class RagService:
         lines = [intro, "命中的 evidence 主要包括："]
         for index, chunk in enumerate(evidence_chunks, start=1):
             terms = ", ".join(chunk.matched_terms) if chunk.matched_terms else "未记录命中词"
-            retrieval_scores = ", ".join(
-                f"{key}={value:.4f}" for key, value in chunk.retrieval_scores.items()
-            ) or "未记录"
+            retrieval_scores = (
+                ", ".join(f"{key}={value:.4f}" for key, value in chunk.retrieval_scores.items())
+                or "未记录"
+            )
             rerank = chunk.rerank_score if chunk.rerank_score is not None else "未启用"
             lines.append(
                 f"[Evidence {index}] P{chunk.paper_id} / chunk {chunk.chunk_index} "
@@ -390,12 +390,22 @@ class RagService:
         if paper.local_summary_path:
             path = Path(paper.local_summary_path)
             if path.exists():
-                return path.read_text(encoding="utf-8"), "local_summary", str(path), "未找到 local_text_path，已使用 local_summary_path。"
+                return (
+                    path.read_text(encoding="utf-8"),
+                    "local_summary",
+                    str(path),
+                    "未找到 local_text_path，已使用 local_summary_path。",
+                )
 
         if paper.deep_summary:
             return paper.deep_summary, "deep_summary", None, "未找到本地文本，已使用 deep_summary。"
         if paper.abstract_summary:
-            return paper.abstract_summary, "abstract_summary", None, "未找到本地文本，已使用 abstract_summary。"
+            return (
+                paper.abstract_summary,
+                "abstract_summary",
+                None,
+                "未找到本地文本，已使用 abstract_summary。",
+            )
         if paper.abstract:
             return paper.abstract, "abstract", None, "未找到本地文本，已使用 abstract。"
         raise HTTPException(status_code=400, detail="该论文没有可用于 RAG 索引的文本。")
@@ -445,7 +455,7 @@ class RagService:
                 provider_key,
                 [
                     (chunk_id, vector)
-                    for (chunk_id, _text), vector in zip(items, vectors)
+                    for (chunk_id, _text), vector in zip(items, vectors, strict=False)
                 ],
             )
         except Exception as exc:  # noqa: BLE001 - 预计算属于最佳努力，失败可降级

@@ -1,12 +1,7 @@
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.core import database
 from app.repositories.rag_trace_repo import RagTraceRepository
@@ -42,7 +37,9 @@ def create_trace(trace_id: str = "trace_eval_1") -> None:
     )
 
 
-def test_evidence_evaluation_service_adds_feedback_by_rank(eval_service: RagEvaluationService) -> None:
+def test_evidence_evaluation_service_adds_feedback_by_rank(
+    eval_service: RagEvaluationService,
+) -> None:
     create_trace()
 
     result = eval_service.add_evidence_feedback(
@@ -57,7 +54,9 @@ def test_evidence_evaluation_service_adds_feedback_by_rank(eval_service: RagEval
     assert result["data"].relevance_label == "relevant"
 
 
-def test_evidence_evaluation_service_rejects_chunk_not_in_trace(eval_service: RagEvaluationService) -> None:
+def test_evidence_evaluation_service_rejects_chunk_not_in_trace(
+    eval_service: RagEvaluationService,
+) -> None:
     create_trace()
 
     result = eval_service.add_evidence_feedback(
@@ -90,7 +89,9 @@ def test_evidence_evaluation_service_summary_metrics(eval_service: RagEvaluation
     assert summary["ndcg_at_5"] > 0
 
 
-def test_evidence_evaluation_service_summary_without_feedback(eval_service: RagEvaluationService) -> None:
+def test_evidence_evaluation_service_summary_without_feedback(
+    eval_service: RagEvaluationService,
+) -> None:
     result = eval_service.get_evidence_evaluation_summary()
 
     assert result["success"] is True

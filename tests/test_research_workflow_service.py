@@ -1,13 +1,7 @@
-import sys
-from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.schemas.innovation import InnovationArtifactRead
 from app.schemas.knowledge import KnowledgeArtifactRead
@@ -75,7 +69,9 @@ def fake_innovation() -> InnovationArtifactRead:
     )
 
 
-def fake_rag_index(paper_id: str, chunk_count: int = 3, warnings: list[str] | None = None, error: str | None = None) -> Any:
+def fake_rag_index(
+    paper_id: str, chunk_count: int = 3, warnings: list[str] | None = None, error: str | None = None
+) -> Any:
     success = error is None
     return SimpleNamespace(
         model_dump=lambda: {
@@ -100,12 +96,18 @@ def test_workflow_runs_steps_in_order(monkeypatch: pytest.MonkeyPatch) -> None:
 
     def fake_accept(payload: Any) -> PaperRead:
         calls.append(f"accept:{payload.paper_id}")
-        return fake_paper(payload.paper_id, f"Paper {payload.paper_id}", status="accepted", is_accepted=1)
+        return fake_paper(
+            payload.paper_id, f"Paper {payload.paper_id}", status="accepted", is_accepted=1
+        )
 
     def fake_ingest(payload: Any) -> PaperRead:
         calls.append(f"ingest:{payload.paper_id}")
-        paper = fake_paper(payload.paper_id, f"Paper {payload.paper_id}", status="ingested", is_accepted=1)
-        return paper.model_copy(update={"ingest_status": "abstract_only", "local_summary_path": "fake.md"})
+        paper = fake_paper(
+            payload.paper_id, f"Paper {payload.paper_id}", status="ingested", is_accepted=1
+        )
+        return paper.model_copy(
+            update={"ingest_status": "abstract_only", "local_summary_path": "fake.md"}
+        )
 
     def fake_index(paper_id: str, chunk_size: int, chunk_overlap: int) -> Any:
         calls.append(f"rag:{paper_id}:{chunk_size}:{chunk_overlap}")
@@ -122,7 +124,15 @@ def test_workflow_runs_steps_in_order(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert result.success is True
     assert result.run_id
-    assert calls == ["search", "accept:1", "accept:2", "ingest:1", "ingest:2", "rag:1:800:120", "rag:2:800:120"]
+    assert calls == [
+        "search",
+        "accept:1",
+        "accept:2",
+        "ingest:1",
+        "ingest:2",
+        "rag:1:800:120",
+        "rag:2:800:120",
+    ]
     assert [step.step for step in result.steps] == [
         "search_papers",
         "accept_top_k",
@@ -164,17 +174,27 @@ def test_workflow_records_ingest_failure_without_crashing(monkeypatch: pytest.Mo
     monkeypatch.setattr(
         service.paper_service,
         "accept_paper",
-        lambda payload: fake_paper(payload.paper_id, f"Paper {payload.paper_id}", status="accepted", is_accepted=1),
+        lambda payload: fake_paper(
+            payload.paper_id, f"Paper {payload.paper_id}", status="accepted", is_accepted=1
+        ),
     )
 
     def fake_ingest(payload: Any) -> PaperRead:
         if payload.paper_id == 2:
             raise RuntimeError("fake ingest failed")
-        paper = fake_paper(payload.paper_id, f"Paper {payload.paper_id}", status="ingested", is_accepted=1)
+        paper = fake_paper(
+            payload.paper_id, f"Paper {payload.paper_id}", status="ingested", is_accepted=1
+        )
         return paper.model_copy(update={"ingest_status": "abstract_only"})
 
     monkeypatch.setattr(service.paper_service, "ingest_paper", fake_ingest)
-    monkeypatch.setattr(service.rag_service, "index_paper_for_rag", lambda paper_id, chunk_size, chunk_overlap: rag_calls.append(paper_id) or fake_rag_index(paper_id))
+    monkeypatch.setattr(
+        service.rag_service,
+        "index_paper_for_rag",
+        lambda paper_id, chunk_size, chunk_overlap: (
+            rag_calls.append(paper_id) or fake_rag_index(paper_id)
+        ),
+    )
     monkeypatch.setattr(service.knowledge_service, "generate", lambda payload: fake_knowledge())
     monkeypatch.setattr(service.innovation_service, "generate", lambda payload: fake_innovation())
 
@@ -189,7 +209,9 @@ def test_workflow_records_ingest_failure_without_crashing(monkeypatch: pytest.Mo
     assert ingest_step.data["errors"] == [{"paper_id": 2, "error": "fake ingest failed"}]
 
 
-def test_workflow_dry_run_uses_mock_data_without_real_services(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_workflow_dry_run_uses_mock_data_without_real_services(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     service = ResearchWorkflowService()
     monkeypatch.setattr(service.workflow_repo, "create", lambda payload: None)
 
@@ -234,7 +256,9 @@ def test_workflow_dry_run_uses_mock_data_without_real_services(monkeypatch: pyte
     assert any("dry_run 模式" in warning for warning in result.warnings)
 
 
-def test_workflow_records_rag_index_failure_without_crashing(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_workflow_records_rag_index_failure_without_crashing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     service = ResearchWorkflowService()
     monkeypatch.setattr(service.workflow_repo, "create", lambda payload: None)
     papers = [fake_paper(1, "Paper 1"), fake_paper(2, "Paper 2")]
@@ -243,12 +267,16 @@ def test_workflow_records_rag_index_failure_without_crashing(monkeypatch: pytest
     monkeypatch.setattr(
         service.paper_service,
         "accept_paper",
-        lambda payload: fake_paper(payload.paper_id, f"Paper {payload.paper_id}", status="accepted", is_accepted=1),
+        lambda payload: fake_paper(
+            payload.paper_id, f"Paper {payload.paper_id}", status="accepted", is_accepted=1
+        ),
     )
     monkeypatch.setattr(
         service.paper_service,
         "ingest_paper",
-        lambda payload: fake_paper(payload.paper_id, f"Paper {payload.paper_id}", status="ingested", is_accepted=1),
+        lambda payload: fake_paper(
+            payload.paper_id, f"Paper {payload.paper_id}", status="ingested", is_accepted=1
+        ),
     )
 
     def fake_index(paper_id: str, chunk_size: int, chunk_overlap: int) -> Any:
@@ -285,7 +313,11 @@ def test_workflow_skips_rag_index_when_disabled(monkeypatch: pytest.MonkeyPatch)
         "ingest_paper",
         lambda payload: fake_paper(payload.paper_id, "Paper 1", status="ingested", is_accepted=1),
     )
-    monkeypatch.setattr(service.rag_service, "index_paper_for_rag", lambda *args, **kwargs: pytest.fail("RAG should be skipped"))
+    monkeypatch.setattr(
+        service.rag_service,
+        "index_paper_for_rag",
+        lambda *args, **kwargs: pytest.fail("RAG should be skipped"),
+    )
     monkeypatch.setattr(service.knowledge_service, "generate", lambda payload: fake_knowledge())
     monkeypatch.setattr(service.innovation_service, "generate", lambda payload: fake_innovation())
 

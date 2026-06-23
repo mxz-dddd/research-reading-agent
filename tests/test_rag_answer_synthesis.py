@@ -1,11 +1,4 @@
-import sys
-from pathlib import Path
-
 import pytest
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.core.llm_client import LLMClientError, OpenAICompatibleClient
 from app.rag.answer_synthesis import (
@@ -29,7 +22,9 @@ def _chunk(chunk_id: str, content: str = "evidence content") -> RagSearchChunk:
 
 class FakeClient(OpenAICompatibleClient):
     def __init__(self, *, reply: str | None = None, error: bool = False) -> None:
-        super().__init__(api_key="fake-key", model="fake-model", base_url="https://example.invalid/v1")
+        super().__init__(
+            api_key="fake-key", model="fake-model", base_url="https://example.invalid/v1"
+        )
         self.reply = reply
         self.error = error
         self.last_messages: list[dict] | None = None
@@ -72,7 +67,9 @@ def test_synthesize_success_includes_evidence_in_prompt() -> None:
     client = FakeClient(reply="方法是 X [chunk:c1]。")
     synthesizer = LLMAnswerSynthesizer(client=client)
 
-    result = synthesizer.synthesize(query="这篇论文的方法是什么？", evidence_chunks=[_chunk("c1", "method X")])
+    result = synthesizer.synthesize(
+        query="这篇论文的方法是什么？", evidence_chunks=[_chunk("c1", "method X")]
+    )
 
     assert result is not None
     assert result["valid"] is True
@@ -115,6 +112,8 @@ def test_should_use_llm_modes(monkeypatch: pytest.MonkeyPatch) -> None:
     assert synthesizer.should_use_llm() is True
 
     unconfigured = LLMAnswerSynthesizer(
-        client=OpenAICompatibleClient(api_key=None, model="m", base_url="https://example.invalid/v1")
+        client=OpenAICompatibleClient(
+            api_key=None, model="m", base_url="https://example.invalid/v1"
+        )
     )
     assert unconfigured.should_use_llm() is False

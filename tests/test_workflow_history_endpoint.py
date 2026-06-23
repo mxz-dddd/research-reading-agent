@@ -1,12 +1,5 @@
-import sys
-from pathlib import Path
-
 import pytest
 from fastapi.testclient import TestClient
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.api import routes_workflow
 from app.main import app
@@ -40,7 +33,9 @@ def fake_workflow_summary(run_id: str = "run-001") -> WorkflowRunSummary:
 
 
 def test_get_latest_workflow_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(routes_workflow.workflow_service, "latest_workflow", lambda: fake_workflow_detail())
+    monkeypatch.setattr(
+        routes_workflow.workflow_service, "latest_workflow", lambda: fake_workflow_detail()
+    )
     client = TestClient(app)
 
     response = client.get("/api/workflow/latest")
@@ -52,7 +47,9 @@ def test_get_latest_workflow_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
     assert data["data"]["dry_run"] is True
 
 
-def test_get_latest_workflow_endpoint_returns_structured_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_latest_workflow_endpoint_returns_structured_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(routes_workflow.workflow_service, "latest_workflow", lambda: None)
     client = TestClient(app)
 

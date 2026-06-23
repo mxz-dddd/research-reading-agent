@@ -1,4 +1,7 @@
-from datetime import datetime, timezone
+from __future__ import annotations
+
+import builtins
+from datetime import UTC, datetime
 from sqlite3 import Row
 
 from fastapi import HTTPException
@@ -13,7 +16,7 @@ from app.schemas.paper import (
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _row_to_paper(row: Row) -> PaperRead:
@@ -83,7 +86,7 @@ class PaperRepository:
             return None
         return _row_to_paper(row)
 
-    def list_accepted(self) -> list[PaperRead]:
+    def list_accepted(self) -> builtins.list[PaperRead]:
         with get_connection() as conn:
             rows = conn.execute(
                 "SELECT * FROM papers WHERE is_accepted = 1 ORDER BY accepted_at DESC"
@@ -199,7 +202,7 @@ class PaperRepository:
             ).fetchone()
         return _row_to_search_history(row)
 
-    def list_search_history(self) -> list[PaperSearchHistoryRead]:
+    def list_search_history(self) -> builtins.list[PaperSearchHistoryRead]:
         with get_connection() as conn:
             rows = conn.execute(
                 "SELECT * FROM paper_search_history ORDER BY created_at DESC"

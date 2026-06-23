@@ -46,9 +46,12 @@ def test_sqlite_vector_store_delete(test_db: Path) -> None:
 
 
 def test_build_provider_key() -> None:
-    assert build_provider_key(
-        {"embedding_provider": "hash", "embedding_model": "hash", "embedding_dim": 256}
-    ) == "hash:hash:256"
+    assert (
+        build_provider_key(
+            {"embedding_provider": "hash", "embedding_model": "hash", "embedding_dim": 256}
+        )
+        == "hash:hash:256"
+    )
 
 
 def test_hybrid_retriever_reuses_sqlite_cache(test_db: Path) -> None:

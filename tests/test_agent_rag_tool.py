@@ -1,13 +1,7 @@
-import sys
-from pathlib import Path
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.agent.orchestrator import AgentOrchestrator
 from app.agent.tool_registry import ToolRegistry
@@ -16,7 +10,13 @@ from app.main import app
 
 def fake_rag_tool_call(self: ToolRegistry, tool_name: str, **kwargs: Any) -> Any:
     if tool_name == "index_paper_rag":
-        return {"success": True, "paper_id": str(kwargs["paper_id"]), "chunk_count": 3, "warnings": [], "error": None}
+        return {
+            "success": True,
+            "paper_id": str(kwargs["paper_id"]),
+            "chunk_count": 3,
+            "warnings": [],
+            "error": None,
+        }
     if tool_name == "rag_search":
         return {
             "success": True,
@@ -122,7 +122,11 @@ def test_agent_rag_answer_no_evidence_message(monkeypatch: pytest.MonkeyPatch) -
 
     response = client.post(
         "/api/agent/query",
-        json={"user_id": "test-user", "session_id": "test-session", "message": "基于论文内容回答 nonexistent query"},
+        json={
+            "user_id": "test-user",
+            "session_id": "test-session",
+            "message": "基于论文内容回答 nonexistent query",
+        },
     )
 
     assert response.status_code == 200

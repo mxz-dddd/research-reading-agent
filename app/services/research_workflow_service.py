@@ -74,7 +74,9 @@ class ResearchWorkflowService:
                 generate_knowledge=generate_knowledge,
                 generate_innovation=generate_innovation,
             )
-            return self._persist_response(response, max_results=max_results, accept_top_k=accept_top_k)
+            return self._persist_response(
+                response, max_results=max_results, accept_top_k=accept_top_k
+            )
 
         steps: list[ResearchWorkflowStep] = []
         warnings: list[str] = []
@@ -153,10 +155,12 @@ class ResearchWorkflowService:
 
         if ingest:
             ingest_errors: list[dict[str, Any]] = []
-            for paper in accepted_papers:
-                paper_id = int(paper["id"])
+            for accepted_paper in accepted_papers:
+                paper_id = int(accepted_paper["id"])
                 try:
-                    ingested = self.paper_service.ingest_paper(PaperIngestRequest(paper_id=paper_id))
+                    ingested = self.paper_service.ingest_paper(
+                        PaperIngestRequest(paper_id=paper_id)
+                    )
                     ingested_papers.append(self._paper_summary(ingested))
                 except Exception as exc:
                     message = f"深入阅读论文 P{paper_id} 失败：{exc}"
@@ -192,7 +196,9 @@ class ResearchWorkflowService:
 
         if generate_knowledge:
             try:
-                knowledge_artifact = self.knowledge_service.generate(KnowledgeGenerateRequest(topic=None))
+                knowledge_artifact = self.knowledge_service.generate(
+                    KnowledgeGenerateRequest(topic=None)
+                )
                 knowledge = self._artifact_summary(knowledge_artifact)
                 steps.append(
                     self._step(
@@ -207,11 +213,15 @@ class ResearchWorkflowService:
                 warnings.append(message)
                 steps.append(self._step("generate_knowledge", False, message, error=str(exc)))
         else:
-            steps.append(self._step("generate_knowledge", True, "已跳过知识树生成。", data={"skipped": True}))
+            steps.append(
+                self._step("generate_knowledge", True, "已跳过知识树生成。", data={"skipped": True})
+            )
 
         if generate_innovation:
             try:
-                innovation_artifact = self.innovation_service.generate(InnovationGenerateRequest(topic=None))
+                innovation_artifact = self.innovation_service.generate(
+                    InnovationGenerateRequest(topic=None)
+                )
                 innovation = self._artifact_summary(innovation_artifact)
                 if innovation.get("innovation_json", {}).get("warning"):
                     warnings.append(str(innovation["innovation_json"]["warning"]))
@@ -228,7 +238,11 @@ class ResearchWorkflowService:
                 warnings.append(message)
                 steps.append(self._step("generate_innovation", False, message, error=str(exc)))
         else:
-            steps.append(self._step("generate_innovation", True, "已跳过创新点生成。", data={"skipped": True}))
+            steps.append(
+                self._step(
+                    "generate_innovation", True, "已跳过创新点生成。", data={"skipped": True}
+                )
+            )
 
         return finalize(success=True, error=None)
 
@@ -387,13 +401,17 @@ class ResearchWorkflowService:
             self._step(
                 "generate_knowledge",
                 True,
-                "dry_run：已生成模拟知识树。" if generate_knowledge else "dry_run：已跳过知识树生成。",
+                "dry_run：已生成模拟知识树。"
+                if generate_knowledge
+                else "dry_run：已跳过知识树生成。",
                 data=knowledge if generate_knowledge else {"skipped": True, "dry_run": True},
             ),
             self._step(
                 "generate_innovation",
                 True,
-                "dry_run：已生成模拟创新点。" if generate_innovation else "dry_run：已跳过创新点生成。",
+                "dry_run：已生成模拟创新点。"
+                if generate_innovation
+                else "dry_run：已跳过创新点生成。",
                 data=innovation if generate_innovation else {"skipped": True, "dry_run": True},
             ),
         ]

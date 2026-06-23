@@ -74,7 +74,9 @@ def test_run_eval_uses_monkeypatched_http_and_writes_output(monkeypatch, tmp_pat
             return (
                 200,
                 {
-                    "chunks": [{"chunk_id": "chunk-1", "paper_id": "paper-1", "content": "method evidence"}],
+                    "chunks": [
+                        {"chunk_id": "chunk-1", "paper_id": "paper-1", "content": "method evidence"}
+                    ],
                     "context_pack_id": "ctx-1",
                     "pipeline": {"retrieval_mode": payload["retrieval_mode"]},
                 },

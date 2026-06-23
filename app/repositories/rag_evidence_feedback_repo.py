@@ -1,10 +1,9 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from sqlite3 import Row
 from uuid import uuid4
 
 from app.core.database import get_connection
 from app.schemas.rag import RagEvidenceFeedbackRead
-
 
 RAG_EVIDENCE_LABEL_BY_SCORE = {
     0: "irrelevant",
@@ -20,7 +19,7 @@ RAG_EVIDENCE_SCORE_BY_LABEL = {
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _row_to_feedback(row: Row) -> RagEvidenceFeedbackRead:
@@ -62,7 +61,9 @@ class RagEvidenceFeedbackRepository:
                 ),
             )
             conn.commit()
-            row = conn.execute("SELECT * FROM rag_evidence_feedback WHERE id = ?", (cursor.lastrowid,)).fetchone()
+            row = conn.execute(
+                "SELECT * FROM rag_evidence_feedback WHERE id = ?", (cursor.lastrowid,)
+            ).fetchone()
         return _row_to_feedback(row)
 
     def get_latest_feedback_for_evidence(
@@ -99,8 +100,12 @@ class RagEvidenceFeedbackRepository:
         latest_by_evidence = self._latest_feedback_by_evidence(trace_id=trace_id)
         total = len(latest_by_evidence)
         relevant_count = sum(1 for item in latest_by_evidence.values() if item.relevance_score == 2)
-        partially_relevant_count = sum(1 for item in latest_by_evidence.values() if item.relevance_score == 1)
-        irrelevant_count = sum(1 for item in latest_by_evidence.values() if item.relevance_score == 0)
+        partially_relevant_count = sum(
+            1 for item in latest_by_evidence.values() if item.relevance_score == 1
+        )
+        irrelevant_count = sum(
+            1 for item in latest_by_evidence.values() if item.relevance_score == 0
+        )
         trace_ids = {item.trace_id for item in latest_by_evidence.values()}
         return {
             "total_traces_with_evidence_feedback": len(trace_ids),
